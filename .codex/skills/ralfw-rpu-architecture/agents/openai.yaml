@@ -1,0 +1,4 @@
+interface:
+  display_name: "RPU Architecture"
+  short_description: "Apply Ralf's RPU architecture guidance in this repository."
+  default_prompt: "Use $ralfw-rpu-architecture to design, review, or evolve code according to Ralf's RPU architecture."
