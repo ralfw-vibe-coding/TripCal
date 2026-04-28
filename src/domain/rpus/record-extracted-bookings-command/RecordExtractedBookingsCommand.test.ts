@@ -21,7 +21,11 @@ describe("RecordExtractedBookingsCommand", () => {
     const ids = new FixedIds(["text-1", "booking-2", "booking-1"]);
 
     const submitText = new SubmitDocumentTextCommand(eventStore, ids);
-    const submitted = await submitText.process({ text: "Travel document", recordedAt: "2026-04-28T10:00:00.000Z" });
+    const submitted = await submitText.process({
+      source: "text",
+      text: "Travel document",
+      recordedAt: "2026-04-28T10:00:00.000Z",
+    });
 
     expect(submitted.status).toBe("succeeded");
     if (submitted.status !== "succeeded") throw new Error("submit failed");
@@ -59,4 +63,3 @@ describe("RecordExtractedBookingsCommand", () => {
     expect(calendar.bookings[0].documentTextRecordedId).toBe("text-1");
   });
 });
-

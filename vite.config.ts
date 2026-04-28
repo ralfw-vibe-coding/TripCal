@@ -1,12 +1,16 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { getProcessorRuntime } from "./src/runtime/singleton";
 
-export default defineConfig({
-  plugins: [react(), tripCalApiPlugin()],
-  server: {
-    port: 5173,
-  },
+export default defineConfig(({ mode }) => {
+  Object.assign(process.env, loadEnv(mode, process.cwd(), ""));
+
+  return {
+    plugins: [react(), tripCalApiPlugin()],
+    server: {
+      port: 5173,
+    },
+  };
 });
 
 function tripCalApiPlugin() {
@@ -30,6 +34,20 @@ function tripCalApiPlugin() {
         const body = await readJsonBody(request);
         const runtime = await getProcessorRuntime();
         const result = await runtime.processor.submitDocumentText({ text: String(body.text ?? "") });
+        sendJson(response, result.status === "accepted" ? 200 : 400, result);
+      });
+
+      server.middlewares.use("/api/submit-document-image", async (request, response) => {
+        if (request.method !== "POST") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+        const body = await readJsonBody(request);
+        const runtime = await getProcessorRuntime();
+        const result = await runtime.processor.submitDocumentImage({
+          imageDataUrl: String(body.imageDataUrl ?? ""),
+          mimeType: String(body.mimeType ?? ""),
+        });
         sendJson(response, result.status === "accepted" ? 200 : 400, result);
       });
     },

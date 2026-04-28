@@ -4,6 +4,7 @@ import type { DocumentTextRecordedV1 } from "../../events/events";
 import { documentTextRecordedV1 } from "../../events/eventTypes";
 
 export type SubmitDocumentTextCommandRequest = {
+  source: "text" | "image";
   text: string;
   recordedAt: string;
 };
@@ -34,7 +35,7 @@ export class SubmitDocumentTextCommand {
       eventType: documentTextRecordedV1,
       payload: {
         id: this.idGenerator.newId(),
-        source: "manual_text",
+        source: request.source,
         text,
         recordedAt: request.recordedAt,
       },
@@ -48,4 +49,3 @@ export class SubmitDocumentTextCommand {
     };
   }
 }
-

@@ -43,5 +43,12 @@ function toCalendarBooking(event: EventRecord): CalendarBooking {
 }
 
 function compareCalendarBookings(a: CalendarBooking, b: CalendarBooking): number {
-  return a.start.value.localeCompare(b.start.value) || a.title.localeCompare(b.title);
+  return startTime(a) - startTime(b) || a.title.localeCompare(b.title);
+}
+
+function startTime(booking: CalendarBooking): number {
+  const value = booking.start.value;
+  const normalized = value.includes("T") ? value : `${value}T00:00:00`;
+  const time = new Date(normalized).getTime();
+  return Number.isNaN(time) ? Number.MAX_SAFE_INTEGER : time;
 }

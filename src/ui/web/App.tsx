@@ -1,21 +1,18 @@
-import { CalendarDays, FileText, Loader2, Plus, RefreshCw, Send, X } from "lucide-react";
+import { CalendarDays, FileText, Image as ImageIcon, Loader2, Plus, RefreshCw, Send, Trash2, X } from "lucide-react";
+import type { ClipboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { CalendarBooking } from "../../domain/model";
-import { submitDocumentText, viewBookingCalendar } from "./api";
+import { submitDocumentImage, submitDocumentText, viewBookingCalendar } from "./api";
 
-const exampleText = `Title: Flug Frankfurt nach Bangkok
-Type: flight
-Start: 2026-11-03T14:45:00+01:00
-End: 2026-11-04T09:20:00+07:00
-From: Frankfurt Airport
-To: Bangkok Suvarnabhumi
-Travelers: Ralf, Ralfs Frau
-Airline: Thai Airways
-Booking number: ABC123`;
+type PastedImage = {
+  dataUrl: string;
+  mimeType: string;
+};
 
 export function App() {
   const [bookings, setBookings] = useState<CalendarBooking[]>([]);
-  const [text, setText] = useState(exampleText);
+  const [text, setText] = useState("");
+  const [pastedImage, setPastedImage] = useState<PastedImage | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(true);
   const [showSubmit, setShowSubmit] = useState(false);
@@ -39,7 +36,9 @@ export function App() {
     setIsSubmitting(true);
     setMessage(undefined);
     try {
-      const response = await submitDocumentText(text);
+      const response = pastedImage
+        ? await submitDocumentImage(pastedImage.dataUrl, pastedImage.mimeType)
+        : await submitDocumentText(text);
       if (response.status === "accepted") {
         setMessage(`${response.bookingExtractedIds.length} Buchung(en) extrahiert.`);
         setShowSubmit(false);
@@ -67,7 +66,7 @@ export function App() {
           <button className="iconButton" type="button" onClick={loadCalendar} title="Kalender aktualisieren">
             {isLoadingCalendar ? <Loader2 className="spin" size={18} /> : <RefreshCw size={18} />}
           </button>
-          <button className="primaryButton" type="button" onClick={() => setShowSubmit(true)}>
+          <button className="primaryButton" type="button" onClick={openSubmitDialog}>
             <Plus size={18} />
             Dokumenttext
           </button>
@@ -122,21 +121,37 @@ export function App() {
 
       {showSubmit ? (
         <div className="dialogBackdrop" role="presentation">
-          <section className="dialog" aria-label="Dokumenttext einreichen">
+          <section className="dialog" aria-label="Dokument einreichen" onPaste={handleDialogPaste}>
             <header className="dialogHeader">
               <div>
                 <div className="eyebrow">Dokument einreichen</div>
-                <h2>Text erfassen</h2>
+                <h2>{pastedImage ? "Bild aus Zwischenablage" : "Text erfassen"}</h2>
               </div>
               <button className="iconButton" type="button" onClick={() => setShowSubmit(false)} title="Schließen">
                 <X size={18} />
               </button>
             </header>
-            <textarea value={text} onChange={(event) => setText(event.target.value)} />
+            {pastedImage ? (
+              <div className="imagePreviewPanel">
+                <img className="imagePreview" src={pastedImage.dataUrl} alt="Eingefügtes Dokument" />
+                <button className="secondaryButton" type="button" onClick={clearPastedImage}>
+                  <Trash2 size={17} />
+                  Bild löschen
+                </button>
+              </div>
+            ) : (
+              <textarea
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="Dokumenttext eingeben oder Text/Bild aus der Zwischenablage einfügen"
+              />
+            )}
             <footer className="dialogFooter">
               <div className="hint">
-                <FileText size={16} />
-                Mehrere Buchungen mit einer Zeile aus drei Bindestrichen trennen.
+                {pastedImage ? <ImageIcon size={16} /> : <FileText size={16} />}
+                {pastedImage
+                  ? "Das Bild wird nur zur Texterkennung verwendet und nicht gespeichert."
+                  : "Text direkt erfassen oder ein Bild aus der Zwischenablage einfügen."}
               </div>
               <button className="primaryButton" type="button" onClick={handleSubmit} disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
@@ -148,6 +163,41 @@ export function App() {
       ) : null}
     </main>
   );
+
+  function openSubmitDialog() {
+    setText("");
+    setPastedImage(undefined);
+    setMessage(undefined);
+    setShowSubmit(true);
+  }
+
+  async function handleDialogPaste(event: ClipboardEvent<HTMLElement>) {
+    const imageItem = [...event.clipboardData.items].find((item) => item.type.startsWith("image/"));
+    if (!imageItem) return;
+
+    const file = imageItem.getAsFile();
+    if (!file) return;
+
+    event.preventDefault();
+    const dataUrl = await readFileAsDataUrl(file);
+    setPastedImage({ dataUrl, mimeType: file.type });
+    setText("");
+    setMessage(undefined);
+  }
+
+  function clearPastedImage() {
+    setPastedImage(undefined);
+    setMessage(undefined);
+  }
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 type BookingGroup = {
@@ -157,11 +207,22 @@ type BookingGroup = {
 
 function groupBookingsByDate(bookings: CalendarBooking[]): BookingGroup[] {
   const groups = new Map<string, CalendarBooking[]>();
-  for (const booking of bookings) {
+  for (const booking of [...bookings].sort(compareCalendarBookings)) {
     const date = booking.start.value.slice(0, 10);
     groups.set(date, [...(groups.get(date) ?? []), booking]);
   }
   return [...groups.entries()].map(([date, groupBookings]) => ({ date, bookings: groupBookings }));
+}
+
+function compareCalendarBookings(a: CalendarBooking, b: CalendarBooking): number {
+  return startTime(a) - startTime(b) || a.title.localeCompare(b.title);
+}
+
+function startTime(booking: CalendarBooking): number {
+  const value = booking.start.value;
+  const normalized = value.includes("T") ? value : `${value}T00:00:00`;
+  const time = new Date(normalized).getTime();
+  return Number.isNaN(time) ? Number.MAX_SAFE_INTEGER : time;
 }
 
 function formatDate(value: string): string {
@@ -191,4 +252,3 @@ function formatDateTime(value: string): string {
     minute: value.includes("T") ? "2-digit" : undefined,
   }).format(date);
 }
-

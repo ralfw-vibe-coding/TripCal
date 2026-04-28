@@ -5,13 +5,13 @@ import { bookingExtractedFromDocumentTextV1, documentTextRecordedV1 } from "./ev
 export type DocumentTextRecordedV1Payload =
   | {
       id: string;
-      source: "manual_text";
+      source: "text" | "image";
       text: string;
       recordedAt: string;
     }
   | {
       id: string;
-      source: "uploaded_file";
+      source: "file";
       documentFileUploadedId: string;
       text: string;
       recordedAt: string;
@@ -53,4 +53,3 @@ export function isBookingExtractedFromDocumentTextV1(
 ): event is BookingExtractedFromDocumentTextV1 {
   return event.eventType === bookingExtractedFromDocumentTextV1;
 }
-

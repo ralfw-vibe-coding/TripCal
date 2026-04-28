@@ -6,7 +6,8 @@ import { SubmitDocumentTextCommand } from "../../../domain/rpus/submit-document-
 import type { BookingExtractionProvider } from "../../../providers/booking-extraction/BookingExtractionProvider";
 import type { Clock } from "../../../providers/clock/Clock";
 import type { IdGenerator } from "../../../providers/ids/IdGenerator";
-import { SubmitDocumentText } from "./SubmitDocumentText";
+import type { TextExtractionProvider } from "../../../providers/text-extraction/TextExtractionProvider";
+import { SubmitDocumentImage } from "./SubmitDocumentImage";
 
 class FixedClock implements Clock {
   now(): Date {
@@ -24,37 +25,46 @@ class FixedIds implements IdGenerator {
   }
 }
 
-const extractionProvider: BookingExtractionProvider = {
+const textExtractionProvider: TextExtractionProvider = {
+  async extractText() {
+    return { text: "Flight LH123 from FRA to BER on 2026-06-10 for Ralf and Ralfs Frau." };
+  },
+};
+
+const bookingExtractionProvider: BookingExtractionProvider = {
   async extractBookingsFromText() {
     return {
       bookings: [
         {
-          title: "Hotel Kyoto",
-          type: "accommodation",
-          start: { value: "2026-10-03", precision: "date" },
-          end: { value: "2026-10-05", precision: "date" },
+          title: "Flight LH123",
+          type: "flight",
+          start: { value: "2026-06-10", precision: "date" },
+          from: { name: "FRA" },
+          to: { name: "BER" },
           travelers: ["Ralf", "Ralfs Frau"],
-          details: "Booking number: H123",
+          details: "Flight LH123",
         },
       ],
     };
   },
 };
 
-describe("SubmitDocumentText", () => {
-  it("records document text and extracted bookings", async () => {
+describe("SubmitDocumentImage", () => {
+  it("extracts text from an image and records bookings from that text", async () => {
     const eventStore = new MemoryEventStore();
     const ids = new FixedIds(["text-1", "booking-1"]);
-    const slice = new SubmitDocumentText(
-      new RecordDocumentTextAndExtractBookings(
-        new FixedClock(),
-        new SubmitDocumentTextCommand(eventStore, ids),
-        extractionProvider,
-        new RecordExtractedBookingsCommand(eventStore, ids),
-      ),
+    const sharedFlow = new RecordDocumentTextAndExtractBookings(
+      new FixedClock(),
+      new SubmitDocumentTextCommand(eventStore, ids),
+      bookingExtractionProvider,
+      new RecordExtractedBookingsCommand(eventStore, ids),
     );
+    const slice = new SubmitDocumentImage(textExtractionProvider, sharedFlow);
 
-    const response = await slice.process({ text: "A sufficiently long text" });
+    const response = await slice.process({
+      imageDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+      mimeType: "image/png",
+    });
 
     expect(response).toEqual({
       status: "accepted",
@@ -64,10 +74,7 @@ describe("SubmitDocumentText", () => {
     });
 
     const stored = await eventStore.query();
-    expect(stored.events.map((event) => event.eventType)).toEqual([
-      "DocumentTextRecordedV1",
-      "BookingExtractedFromDocumentTextV1",
-    ]);
-    expect(stored.events[0].payload.source).toBe("text");
+    expect(stored.events[0].payload.source).toBe("image");
   });
 });
+

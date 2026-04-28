@@ -70,6 +70,7 @@ h1 {
 }
 
 .primaryButton,
+.secondaryButton,
 .iconButton {
   border: 1px solid #18201f;
   border-radius: 8px;
@@ -83,6 +84,18 @@ h1 {
   background: #18201f;
   color: #ffffff;
   font-weight: 700;
+}
+
+.secondaryButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  background: #ffffff;
+  color: #18201f;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .primaryButton:disabled {
@@ -243,6 +256,23 @@ textarea {
   line-height: 1.5;
 }
 
+.imagePreviewPanel {
+  min-height: 300px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 16px;
+}
+
+.imagePreview {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border: 1px solid #d7dedb;
+  border-radius: 8px;
+  background: #f7f7f4;
+}
+
 .hint {
   gap: 8px;
   color: #5b6f6a;
@@ -284,4 +314,3 @@ textarea {
     flex-direction: column;
   }
 }
-
