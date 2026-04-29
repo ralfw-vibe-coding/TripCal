@@ -175,13 +175,15 @@ export function App() {
             <span>Noch keine Buchungen erfasst.</span>
           </div>
         ) : (
-          groupedBookings.map((group) => (
-            <section className="dayGroup" key={group.date}>
-              <div className="dateRail">
-                <span>{formatDate(group.date)}</span>
-              </div>
-              <div className="bookingList">
-                {group.bookings.map((booking) => (
+          groupedBookings.map((group, index) => (
+            <div className="calendarDayWithGap" key={group.date}>
+              {index > 0 ? <GapBar previousDate={groupedBookings[index - 1].date} nextDate={group.date} /> : null}
+              <section className="dayGroup">
+                <div className="dateRail">
+                  <span>{formatDate(group.date)}</span>
+                </div>
+                <div className="bookingList">
+                  {group.bookings.map((booking) => (
                   <article className="bookingCard compact" key={booking.bookingExtractedId}>
                     <div className="bookingCompactRow">
                       <BookingTypeIcon type={booking.type} />
@@ -244,9 +246,10 @@ export function App() {
                       </div>
                     ) : null}
                   </article>
-                ))}
-              </div>
-            </section>
+                  ))}
+                </div>
+              </section>
+            </div>
           ))
         )}
       </section>
@@ -619,6 +622,21 @@ function TravelerBadges({ travelers }: { travelers: string[] }) {
   );
 }
 
+function GapBar({ previousDate, nextDate }: { previousDate: string; nextDate: string }) {
+  const emptyDays = daysBetween(previousDate, nextDate) - 1;
+  if (emptyDays <= 0) return null;
+
+  const normalized = Math.min(1, Math.log1p(emptyDays) / Math.log1p(90));
+  const width = 28 + normalized * 280;
+  const height = 2 + normalized * 8;
+
+  return (
+    <div className="gapBarRow" aria-hidden="true">
+      <div className="gapBar" style={{ width: `${width}px`, height: `${height}px` }} />
+    </div>
+  );
+}
+
 function travelerBadgeStyle(traveler: string) {
   const palette = travelerPalette[traveler] ?? fallbackTravelerPalette[hashString(traveler) % fallbackTravelerPalette.length];
   return {
@@ -730,6 +748,13 @@ function groupBookingsByDate(bookings: CalendarBooking[]): BookingGroup[] {
     groups.set(date, [...(groups.get(date) ?? []), booking]);
   }
   return [...groups.entries()].map(([date, groupBookings]) => ({ date, bookings: groupBookings }));
+}
+
+function daysBetween(first: string, second: string): number {
+  const firstTime = Date.UTC(Number(first.slice(0, 4)), Number(first.slice(5, 7)) - 1, Number(first.slice(8, 10)));
+  const secondTime = Date.UTC(Number(second.slice(0, 4)), Number(second.slice(5, 7)) - 1, Number(second.slice(8, 10)));
+  const days = Math.round((secondTime - firstTime) / 86_400_000);
+  return Number.isFinite(days) ? days : 0;
 }
 
 function compareCalendarBookings(a: CalendarBooking, b: CalendarBooking): number {

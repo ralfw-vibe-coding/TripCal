@@ -257,6 +257,20 @@ h1 {
   border-bottom: 1px solid #d7dedb;
 }
 
+.gapBarRow {
+  display: flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 4px 0 0 212px;
+}
+
+.gapBar {
+  max-width: min(308px, calc(100vw - 260px));
+  border-radius: 999px;
+  background: #c7d0cc;
+  opacity: 0.7;
+}
+
 .dateRail {
   color: #40504d;
   font-weight: 800;
@@ -643,6 +657,14 @@ textarea {
   .dayGroup {
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+
+  .gapBarRow {
+    padding-left: 0;
+  }
+
+  .gapBar {
+    max-width: min(308px, 82vw);
   }
 
   .bookingHeader {
