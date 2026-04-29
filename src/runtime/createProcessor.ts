@@ -6,6 +6,7 @@ import { dirname } from "node:path";
 import { Processor } from "../behavior/Processor";
 import { RecordDocumentTextAndExtractBookings } from "../behavior/flows/RecordDocumentTextAndExtractBookings";
 import { DeleteBooking } from "../behavior/slices/delete-booking/DeleteBooking";
+import { IngestEmail } from "../behavior/slices/ingest-email/IngestEmail";
 import { SubmitDocumentImage } from "../behavior/slices/submit-document-image/SubmitDocumentImage";
 import { SubmitDocumentFiles } from "../behavior/slices/submit-document-files/SubmitDocumentFiles";
 import { SubmitDocumentText } from "../behavior/slices/submit-document-text/SubmitDocumentText";
@@ -13,6 +14,7 @@ import { ViewBookingCalendar } from "../behavior/slices/view-booking-calendar/Vi
 import { DeleteBookingCommand } from "../domain/rpus/delete-booking-command/DeleteBookingCommand";
 import { GetBookingCalendarQuery } from "../domain/rpus/get-booking-calendar-query/GetBookingCalendarQuery";
 import { RecordDocumentFileUploadedCommand } from "../domain/rpus/record-document-file-uploaded-command/RecordDocumentFileUploadedCommand";
+import { RecordEmailIngestedCommand } from "../domain/rpus/record-email-ingested-command/RecordEmailIngestedCommand";
 import { RecordExtractedBookingsCommand } from "../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
 import { SubmitDocumentTextCommand } from "../domain/rpus/submit-document-text-command/SubmitDocumentTextCommand";
 import { OpenAIBookingExtractionProvider } from "../providers/booking-extraction/OpenAIBookingExtractionProvider";
@@ -43,6 +45,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
 
   const submitDocumentTextCommand = new SubmitDocumentTextCommand(store, idGenerator);
   const deleteBookingCommand = new DeleteBookingCommand(store, idGenerator, clock);
+  const recordEmailIngestedCommand = new RecordEmailIngestedCommand(store, idGenerator);
   const recordDocumentFileUploadedCommand = new RecordDocumentFileUploadedCommand(store, idGenerator);
   const recordExtractedBookingsCommand = new RecordExtractedBookingsCommand(store, idGenerator, travelerResolver);
   const getBookingCalendarQuery = new GetBookingCalendarQuery(store, travelerResolver);
@@ -56,6 +59,14 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   const submitDocumentText = new SubmitDocumentText(recordDocumentTextAndExtractBookings);
   const submitDocumentImage = new SubmitDocumentImage(textExtractionProvider, recordDocumentTextAndExtractBookings);
   const deleteBooking = new DeleteBooking(deleteBookingCommand);
+  const ingestEmail = new IngestEmail(
+    clock,
+    fileStorageProvider,
+    textExtractionProvider,
+    recordEmailIngestedCommand,
+    recordDocumentFileUploadedCommand,
+    recordDocumentTextAndExtractBookings,
+  );
   const submitDocumentFiles = new SubmitDocumentFiles(
     clock,
     fileStorageProvider,
@@ -68,7 +79,14 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   return {
     eventStore: store,
     fileStorageProvider,
-    processor: new Processor(submitDocumentText, submitDocumentImage, submitDocumentFiles, deleteBooking, viewBookingCalendar),
+    processor: new Processor(
+      submitDocumentText,
+      submitDocumentImage,
+      submitDocumentFiles,
+      ingestEmail,
+      deleteBooking,
+      viewBookingCalendar,
+    ),
   };
 }
 

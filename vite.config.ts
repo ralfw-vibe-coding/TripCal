@@ -65,6 +65,22 @@ function tripCalApiPlugin() {
         sendJson(response, result.status === "accepted" ? 200 : 400, result);
       });
 
+      server.middlewares.use("/api/ingest-email", async (request, response) => {
+        if (request.method !== "POST") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+        const auth = authorizeIngestEmail(request.headers);
+        if (!auth.authorized) {
+          sendJson(response, auth.statusCode, { message: auth.message });
+          return;
+        }
+        const body = await readJsonBody(request);
+        const runtime = await getProcessorRuntime();
+        const result = await runtime.processor.ingestEmail(toIngestEmailRequest(body));
+        sendJson(response, result.status === "accepted" ? 200 : 400, result);
+      });
+
       server.middlewares.use("/api/delete-booking", async (request, response) => {
         if (request.method !== "POST") {
           sendJson(response, 405, { message: "Method not allowed" });
@@ -114,6 +130,47 @@ function toFileInput(value: unknown) {
     dataBase64: String(record.dataBase64 ?? ""),
     dataUrl: String(record.dataUrl ?? ""),
   };
+}
+
+function toIngestEmailRequest(body: Record<string, unknown>) {
+  const email = typeof body.email === "object" && body.email !== null ? (body.email as Record<string, unknown>) : body;
+
+  return {
+    messageId: String(email.messageId ?? email.messageID ?? email.id ?? ""),
+    from: optionalString(email.from),
+    subject: optionalString(email.subject),
+    receivedAt: optionalString(email.receivedAt ?? email.date),
+    text: optionalString(email.text ?? email.bodyText ?? body.text),
+    attachments: Array.isArray(body.attachments) ? body.attachments.map(toEmailAttachmentInput) : [],
+  };
+}
+
+function toEmailAttachmentInput(value: unknown) {
+  const record = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  return {
+    fileName: String(record.fileName ?? record.filename ?? record.name ?? ""),
+    mimeType: String(record.mimeType ?? record.contentType ?? record.type ?? "application/octet-stream"),
+    dataBase64: String(record.dataBase64 ?? record.data ?? record.content ?? ""),
+  };
+}
+
+function authorizeIngestEmail(headers: import("node:http").IncomingHttpHeaders) {
+  const expectedToken = process.env.EMAIL_INGEST_TOKEN?.trim();
+  if (!expectedToken) {
+    return { authorized: false, statusCode: 500, message: "EMAIL_INGEST_TOKEN is not configured." };
+  }
+
+  if (headers.authorization !== `Bearer ${expectedToken}`) {
+    return { authorized: false, statusCode: 401, message: "Unauthorized." };
+  }
+
+  return { authorized: true as const };
+}
+
+function optionalString(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  const text = String(value).trim();
+  return text.length > 0 ? text : undefined;
 }
 
 async function readJsonBody(request: import("node:http").IncomingMessage): Promise<Record<string, unknown>> {

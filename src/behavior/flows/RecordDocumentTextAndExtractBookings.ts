@@ -12,6 +12,11 @@ export type RecordDocumentTextAndExtractBookingsRequest =
       source: "file";
       documentFileUploadedId: string;
       text: string;
+    }
+  | {
+      source: "email";
+      emailIngestedId: string;
+      text: string;
     };
 
 export type RecordDocumentTextAndExtractBookingsResponse =
@@ -55,6 +60,13 @@ export class RecordDocumentTextAndExtractBookings {
             text,
             recordedAt,
           }
+        : request.source === "email"
+          ? {
+              source: "email",
+              emailIngestedId: request.emailIngestedId,
+              text,
+              recordedAt,
+            }
         : {
             source: request.source,
             text,

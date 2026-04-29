@@ -1,4 +1,5 @@
 import type { DeleteBooking, DeleteBookingRequest, DeleteBookingResponse } from "./slices/delete-booking/DeleteBooking";
+import type { IngestEmail, IngestEmailRequest, IngestEmailResponse } from "./slices/ingest-email/IngestEmail";
 import type {
   SubmitDocumentText,
   SubmitDocumentTextRequest,
@@ -25,6 +26,7 @@ export class Processor {
     private readonly submitDocumentTextSlice: SubmitDocumentText,
     private readonly submitDocumentImageSlice: SubmitDocumentImage,
     private readonly submitDocumentFilesSlice: SubmitDocumentFiles,
+    private readonly ingestEmailSlice: IngestEmail,
     private readonly deleteBookingSlice: DeleteBooking,
     private readonly viewBookingCalendarSlice: ViewBookingCalendar,
   ) {}
@@ -39,6 +41,10 @@ export class Processor {
 
   submitDocumentFiles(request: SubmitDocumentFilesRequest): Promise<SubmitDocumentFilesResponse> {
     return this.submitDocumentFilesSlice.process(request);
+  }
+
+  ingestEmail(request: IngestEmailRequest): Promise<IngestEmailResponse> {
+    return this.ingestEmailSlice.process(request);
   }
 
   deleteBooking(request: DeleteBookingRequest): Promise<DeleteBookingResponse> {

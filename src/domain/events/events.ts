@@ -5,6 +5,7 @@ import {
   bookingExtractedFromDocumentTextV1,
   documentFileUploadedV1,
   documentTextRecordedV1,
+  emailIngestedV1,
 } from "./eventTypes";
 
 export type DocumentTextRecordedV1Payload =
@@ -20,6 +21,13 @@ export type DocumentTextRecordedV1Payload =
       documentFileUploadedId: string;
       text: string;
       recordedAt: string;
+    }
+  | {
+      id: string;
+      source: "email";
+      emailIngestedId: string;
+      text: string;
+      recordedAt: string;
     };
 
 export type DocumentTextRecordedV1 = Event & {
@@ -27,18 +35,44 @@ export type DocumentTextRecordedV1 = Event & {
   payload: DocumentTextRecordedV1Payload;
 };
 
-export type DocumentFileUploadedV1Payload = {
-  id: string;
-  originalFileName: string;
-  mimeType: string;
-  sizeBytes: number;
-  storageKey: string;
-  uploadedAt: string;
-};
+export type DocumentFileUploadedV1Payload =
+  | {
+      id: string;
+      source: "upload";
+      originalFileName: string;
+      mimeType: string;
+      sizeBytes: number;
+      storageKey: string;
+      uploadedAt: string;
+    }
+  | {
+      id: string;
+      source: "email";
+      emailIngestedId: string;
+      originalFileName: string;
+      mimeType: string;
+      sizeBytes: number;
+      storageKey: string;
+      uploadedAt: string;
+    };
 
 export type DocumentFileUploadedV1 = Event & {
   eventType: typeof documentFileUploadedV1;
   payload: DocumentFileUploadedV1Payload;
+};
+
+export type EmailIngestedV1Payload = {
+  id: string;
+  messageId: string;
+  from?: string;
+  subject?: string;
+  receivedAt?: string;
+  ingestedAt: string;
+};
+
+export type EmailIngestedV1 = Event & {
+  eventType: typeof emailIngestedV1;
+  payload: EmailIngestedV1Payload;
 };
 
 export type BookingExtractedFromDocumentTextV1Payload = {
@@ -78,6 +112,7 @@ export type BookingDeletedV1 = Event & {
 export type TripCalEvent =
   | DocumentTextRecordedV1
   | DocumentFileUploadedV1
+  | EmailIngestedV1
   | BookingExtractedFromDocumentTextV1
   | BookingDeletedV1;
 
@@ -87,6 +122,10 @@ export function isDocumentTextRecordedV1(event: Event): event is DocumentTextRec
 
 export function isDocumentFileUploadedV1(event: Event): event is DocumentFileUploadedV1 {
   return event.eventType === documentFileUploadedV1;
+}
+
+export function isEmailIngestedV1(event: Event): event is EmailIngestedV1 {
+  return event.eventType === emailIngestedV1;
 }
 
 export function isBookingExtractedFromDocumentTextV1(

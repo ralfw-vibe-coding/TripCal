@@ -14,6 +14,12 @@ export type SubmitDocumentTextCommandRequest =
       documentFileUploadedId: string;
       text: string;
       recordedAt: string;
+    }
+  | {
+      source: "email";
+      emailIngestedId: string;
+      text: string;
+      recordedAt: string;
     };
 
 export type SubmitDocumentTextCommandResponse =
@@ -49,6 +55,14 @@ export class SubmitDocumentTextCommand {
               text,
               recordedAt: request.recordedAt,
             }
+          : request.source === "email"
+            ? {
+                id: this.idGenerator.newId(),
+                source: "email",
+                emailIngestedId: request.emailIngestedId,
+                text,
+                recordedAt: request.recordedAt,
+              }
           : {
               id: this.idGenerator.newId(),
               source: request.source,
