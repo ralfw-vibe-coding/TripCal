@@ -6,6 +6,7 @@ import type {
 } from "../../behavior/slices/submit-document-files/SubmitDocumentFiles";
 import type { ViewBookingCalendarResponse } from "../../behavior/slices/view-booking-calendar/ViewBookingCalendar";
 import type { DeleteBookingResponse } from "../../behavior/slices/delete-booking/DeleteBooking";
+import type { ActivityLogEntry } from "../../providers/activity-log/ActivityLogProvider";
 
 export async function viewBookingCalendar(): Promise<ViewBookingCalendarResponse> {
   const response = await fetch("/api/view-booking-calendar");
@@ -65,4 +66,12 @@ export async function deleteBooking(bookingExtractedId: string): Promise<DeleteB
     throw new Error("Buchung konnte nicht gelöscht werden.");
   }
   return body;
+}
+
+export async function viewActivityLog(): Promise<{ entries: ActivityLogEntry[] }> {
+  const response = await fetch("/api/activity-log");
+  if (!response.ok) {
+    throw new Error("Log konnte nicht geladen werden.");
+  }
+  return (await response.json()) as { entries: ActivityLogEntry[] };
 }

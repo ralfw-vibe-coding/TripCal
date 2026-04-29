@@ -97,6 +97,19 @@ h1 {
   color: #18201f;
 }
 
+.secondaryLinkButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #cfd8d5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #18201f;
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .notice {
   border: 1px solid #cfd8d5;
   border-radius: 8px;
@@ -125,6 +138,105 @@ h1 {
 .logLinkWrap a:hover {
   color: #40504d;
   text-decoration: underline;
+}
+
+.logShell {
+  width: min(1440px, calc(100vw - 32px));
+  color: #f3f7f5;
+}
+
+.logSurface {
+  overflow-x: auto;
+  border: 1px solid #26332f;
+  border-radius: 8px;
+  background: #050807;
+}
+
+.logTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.84rem;
+}
+
+.logTable th,
+.logTable td {
+  vertical-align: top;
+  padding: 10px 12px;
+  border-bottom: 1px solid #1f2b27;
+  text-align: left;
+}
+
+.logTable th {
+  position: sticky;
+  top: 0;
+  background: #101714;
+  color: #9db6ad;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.logTime {
+  min-width: 150px;
+  color: #96d6b8;
+  white-space: nowrap;
+}
+
+.logLevel {
+  display: inline-flex;
+  min-width: 64px;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.logLevel.info {
+  background: #153526;
+  color: #7ff0aa;
+}
+
+.logLevel.warning {
+  background: #3b2c12;
+  color: #ffd166;
+}
+
+.logLevel.error {
+  background: #451925;
+  color: #ff7a9a;
+}
+
+.logScope {
+  min-width: 150px;
+  color: #72b7ff;
+  font-weight: 700;
+}
+
+.logMessage {
+  min-width: 260px;
+  font-weight: 700;
+}
+
+.logDetails {
+  max-width: 620px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #dce8e3;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.batchSeparator td {
+  padding: 14px 12px;
+  background: #17211d;
+  color: #c6f6d5;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .emptyState {

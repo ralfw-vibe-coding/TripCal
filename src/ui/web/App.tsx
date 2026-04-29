@@ -25,7 +25,15 @@ import type { LucideIcon } from "lucide-react";
 import type { ChangeEvent, ClipboardEvent, DragEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarBooking } from "../../domain/model";
-import { deleteBooking, submitDocumentFiles, submitDocumentImage, submitDocumentText, viewBookingCalendar } from "./api";
+import type { ActivityLogEntry } from "../../providers/activity-log/ActivityLogProvider";
+import {
+  deleteBooking,
+  submitDocumentFiles,
+  submitDocumentImage,
+  submitDocumentText,
+  viewActivityLog,
+  viewBookingCalendar,
+} from "./api";
 
 type PastedImage = {
   dataUrl: string;
@@ -43,7 +51,15 @@ type PendingFile = {
 
 type SubmitTab = "files" | "text";
 
+type ActivityLogTableRow =
+  | { type: "entry"; entry: ActivityLogEntry }
+  | { type: "separator"; id: string; gapMs: number };
+
 export function App() {
+  if (window.location.pathname === "/log") {
+    return <ActivityLogPage />;
+  }
+
   const [bookings, setBookings] = useState<CalendarBooking[]>([]);
   const [text, setText] = useState("");
   const [pastedImage, setPastedImage] = useState<PastedImage | undefined>();
@@ -236,7 +252,7 @@ export function App() {
       </section>
 
       <div className="logLinkWrap">
-        <a href="/api/activity-log" target="_blank" rel="noreferrer">
+        <a href="/log" target="_blank" rel="noreferrer">
           Log
         </a>
       </div>
@@ -501,6 +517,96 @@ function BookingTypeIcon({ type }: { type: CalendarBooking["type"] }) {
   );
 }
 
+function ActivityLogPage() {
+  const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [message, setMessage] = useState<string | undefined>();
+
+  async function loadLog() {
+    setIsLoading(true);
+    setMessage(undefined);
+    try {
+      const response = await viewActivityLog();
+      setEntries(response.entries);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Log konnte nicht geladen werden.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadLog();
+  }, []);
+
+  const rows = useMemo(() => withBatchSeparators(entries), [entries]);
+
+  return (
+    <main className="appShell logShell">
+      <header className="topBar">
+        <div>
+          <div className="eyebrow">TripCal</div>
+          <h1>Log</h1>
+        </div>
+        <div className="toolbar">
+          <a className="secondaryLinkButton" href="/">
+            Kalender
+          </a>
+          <button className="iconButton" type="button" onClick={loadLog} title="Log aktualisieren">
+            {isLoading ? <Loader2 className="spin" size={18} /> : <RefreshCw size={18} />}
+          </button>
+        </div>
+      </header>
+
+      {message ? <div className="notice">{message}</div> : null}
+
+      <section className="logSurface" aria-label="Activity Log">
+        {isLoading ? (
+          <div className="emptyState">
+            <Loader2 className="spin" size={24} />
+            Log wird geladen
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="emptyState">Keine Logeinträge vorhanden.</div>
+        ) : (
+          <table className="logTable">
+            <thead>
+              <tr>
+                <th>Zeit</th>
+                <th>Level</th>
+                <th>Scope</th>
+                <th>Meldung</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) =>
+                row.type === "separator" ? (
+                  <tr className="batchSeparator" key={row.id}>
+                    <td colSpan={5}>Batchwechsel · Abstand {formatDuration(row.gapMs)}</td>
+                  </tr>
+                ) : (
+                  <tr key={row.entry.id}>
+                    <td className="logTime">{formatLogTime(row.entry.timestamp)}</td>
+                    <td>
+                      <span className={`logLevel ${row.entry.level}`}>{row.entry.level}</span>
+                    </td>
+                    <td className="logScope">{row.entry.scope}</td>
+                    <td className="logMessage">{row.entry.message}</td>
+                    <td>
+                      <pre className="logDetails">{formatLogDetails(row.entry.details)}</pre>
+                    </td>
+                  </tr>
+                ),
+              )}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </main>
+  );
+}
+
 function TravelerBadges({ travelers }: { travelers: string[] }) {
   return (
     <div className="travelerBadges" aria-label="Reisende">
@@ -725,6 +831,46 @@ function formatProcessedAt(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function withBatchSeparators(entries: ActivityLogEntry[]): ActivityLogTableRow[] {
+  const rows: ActivityLogTableRow[] = [];
+  const batchGapMs = 60_000;
+
+  entries.forEach((entry, index) => {
+    const previous = entries[index - 1];
+    if (previous) {
+      const gapMs = Math.abs(new Date(previous.timestamp).getTime() - new Date(entry.timestamp).getTime());
+      if (Number.isFinite(gapMs) && gapMs >= batchGapMs) {
+        rows.push({ type: "separator", id: `${previous.id}-${entry.id}`, gapMs });
+      }
+    }
+    rows.push({ type: "entry", entry });
+  });
+
+  return rows;
+}
+
+function formatLogTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "short",
+    timeStyle: "medium",
+  }).format(date);
+}
+
+function formatLogDetails(details: Record<string, unknown> | undefined): string {
+  if (!details) return "";
+  return JSON.stringify(details, null, 2);
+}
+
+function formatDuration(ms: number): string {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 120) return `${seconds} Sekunden`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 120) return `${minutes} Minuten`;
+  return `${Math.round(minutes / 60)} Stunden`;
 }
 
 function formatTime(value: string): string {
