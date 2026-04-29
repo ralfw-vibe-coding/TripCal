@@ -25,7 +25,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first();\nconst json = item.json ?? {};\nconst binary = item.binary ?? {};\n\nconst attachments = [];\n\nfor (const [key, meta] of Object.entries(binary)) {\n  const buffer = await this.helpers.getBinaryDataBuffer(0, key);\n  attachments.push({\n    fileName: meta.fileName || meta.fileNameDecoded || key,\n    mimeType: meta.mimeType || 'application/octet-stream',\n    dataBase64: buffer.toString('base64'),\n  });\n}\n\nconst from = typeof json.from === 'object'\n  ? json.from.text || json.from.value?.[0]?.address || undefined\n  : json.from;\n\nreturn [\n  {\n    json: {\n      email: {\n        messageId: json.messageId || json.messageID || json.uid || `${json.date || Date.now()}-${json.subject || 'email'}`,\n        from,\n        subject: json.subject,\n        receivedAt: json.date || json.receivedAt,\n        text: json.textPlain || json.text || json.bodyText || '',\n      },\n      attachments,\n    },\n  },\n];"
+        "jsCode": "const item = $input.first();\nconst json = item.json ?? {};\nconst binary = item.binary ?? {};\n\nconst from = typeof json.from === 'object'\n  ? json.from.text || json.from.value?.[0]?.address || undefined\n  : json.from;\n\nconst baseMessageId = String(json.messageId || json.messageID || json.uid || `${json.date || Date.now()}-${json.subject || 'email'}`);\nconst receivedAt = json.date || json.receivedAt;\nconst subject = json.subject;\nconst text = json.textPlain || json.text || json.bodyText || '';\nconst output = [];\n\nfunction email(partId, partText = '') {\n  return {\n    messageId: `${baseMessageId}#${partId}`,\n    originalMessageId: baseMessageId,\n    from,\n    subject,\n    receivedAt,\n    text: partText,\n  };\n}\n\nif (String(text).trim().length > 0) {\n  output.push({\n    json: {\n      email: email('body', text),\n      attachments: [],\n    },\n  });\n}\n\nlet attachmentIndex = 0;\nfor (const [key, meta] of Object.entries(binary)) {\n  const buffer = await this.helpers.getBinaryDataBuffer(0, key);\n  output.push({\n    json: {\n      email: email(`attachment_${attachmentIndex}`),\n      attachments: [\n        {\n          fileName: meta.fileName || meta.fileNameDecoded || key,\n          mimeType: meta.mimeType || 'application/octet-stream',\n          dataBase64: buffer.toString('base64'),\n        },\n      ],\n    },\n  });\n  attachmentIndex += 1;\n}\n\nreturn output;"
       },
       "id": "NormalizeEmail",
       "name": "Normalize Email for TripCal",
@@ -51,36 +51,55 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $json.tripcalUrl }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ 'Bearer ' + $json.tripcalToken }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.payload) }}",
-        "options": {
-          "timeout": 120000
-        }
+        "jsCode": "const item = $input.first();\nconst { tripcalUrl, tripcalToken, payload } = item.json;\n\ntry {\n  const response = await fetch(tripcalUrl, {\n    method: 'POST',\n    headers: {\n      authorization: `Bearer ${tripcalToken}`,\n      'content-type': 'application/json',\n    },\n    body: JSON.stringify(payload),\n  });\n\n  const responseText = await response.text();\n  if (response.ok) {\n    return [];\n  }\n\n  return [\n    {\n      json: {\n        originalEmail: payload.email,\n        endpoint: tripcalUrl,\n        httpStatus: response.status,\n        httpStatusText: response.statusText,\n        responseBody: responseText,\n      },\n    },\n  ];\n} catch (error) {\n  return [\n    {\n      json: {\n        originalEmail: payload.email,\n        endpoint: tripcalUrl,\n        httpStatus: 'network_error',\n        httpStatusText: error?.name || 'Error',\n        responseBody: error?.message || String(error),\n      },\n    },\n  ];\n}"
       },
       "id": "SendToTripCal",
       "name": "Send to TripCal",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         1040,
         300
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst email = item.json.originalEmail ?? {};\nconst from = String(email.from || '').trim();\nconst match = from.match(/<([^>]+)>/) || from.match(/([^\\s<>]+@[^\\s<>]+)/);\nconst toEmail = match ? match[1] : from;\n\nconst originalSubject = email.subject || '(ohne Betreff)';\nconst originalMessageId = email.originalMessageId || email.messageId;\nconst attachmentNames = Array.isArray(item.json.attachments)\n  ? item.json.attachments.map((attachment) => attachment.fileName).filter(Boolean)\n  : [];\n\nconst body = [\n  'TripCal konnte eine weitergeleitete E-Mail nicht verarbeiten.',\n  '',\n  `Betreff: ${originalSubject}`,\n  `Von: ${from || 'unbekannt'}`,\n  `Empfangen: ${email.receivedAt || 'unbekannt'}`,\n  `TripCal Endpoint: ${item.json.endpoint}`,\n  '',\n  `HTTP Status: ${item.json.httpStatus} ${item.json.httpStatusText || ''}`.trim(),\n  '',\n  'Antwort der TripCal API:',\n  item.json.responseBody || '(keine Antwort)',\n  '',\n  attachmentNames.length > 0 ? `Anhänge: ${attachmentNames.join(', ')}` : '',\n].filter((line) => line !== '').join('\\n');\n\nreturn [\n  {\n    json: {\n      toEmail,\n      fromEmail: 'tripcal-documents@work-with-ease.eu',\n      subject: `TripCal Fehler: ${originalSubject}`,\n      text: body,\n      headers: originalMessageId\n        ? `In-Reply-To: ${originalMessageId}\\nReferences: ${originalMessageId}`\n        : '',\n    },\n  },\n];"
+      },
+      "id": "BuildFailureEmail",
+      "name": "Build Failure Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $json.fromEmail }}",
+        "toEmail": "={{ $json.toEmail }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {
+          "customEmailHeaders": "={{ $json.headers }}"
+        }
+      },
+      "id": "SendFailureEmail",
+      "name": "Send Failure Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1560,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "REPLACE_WITH_SMTP_CREDENTIAL_ID",
+          "name": "tripcal-documents@work-with-ease.eu"
+        }
+      }
     }
   ],
   "connections": {
@@ -111,6 +130,28 @@
         [
           {
             "node": "Send to TripCal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to TripCal": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Failure Email": {
+      "main": [
+        [
+          {
+            "node": "Send Failure Email",
             "type": "main",
             "index": 0
           }

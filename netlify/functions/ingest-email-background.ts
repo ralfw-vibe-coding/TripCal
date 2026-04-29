@@ -1,26 +1,25 @@
 import { getProcessorRuntime } from "../../src/runtime/singleton";
 
-type NetlifyEvent = {
-  httpMethod: string;
-  body: string | null;
-  headers?: Record<string, string | undefined>;
-};
-
-export async function handler(event: NetlifyEvent) {
-  if (event.httpMethod !== "POST") {
+export default async (request: Request) => {
+  if (request.method !== "POST") {
     return json(405, { message: "Method not allowed" });
   }
 
-  const auth = authorize(event.headers ?? {});
+  const auth = authorize(request.headers);
   if (!auth.authorized) {
     return json(auth.statusCode, { message: auth.message });
   }
 
-  const body = parseBody(event.body);
+  const body = await parseBody(request);
   const runtime = await getProcessorRuntime();
-  const response = await runtime.processor.ingestEmail(toIngestEmailRequest(body));
-  return json(response.status === "accepted" ? 200 : 400, response);
-}
+  await runtime.processor.ingestEmail(toIngestEmailRequest(body));
+
+  return json(202, { status: "accepted" });
+};
+
+export const config = {
+  path: "/api/ingest-email-background",
+};
 
 function toIngestEmailRequest(body: Record<string, unknown>) {
   const email = typeof body.email === "object" && body.email !== null ? (body.email as Record<string, unknown>) : body;
@@ -44,28 +43,25 @@ function toAttachmentInput(value: unknown) {
   };
 }
 
-function authorize(headers: Record<string, string | undefined>) {
+function authorize(headers: Headers) {
   const expectedToken = readEnv("EMAIL_INGEST_TOKEN");
   if (!expectedToken) {
     return { authorized: false, statusCode: 500, message: "EMAIL_INGEST_TOKEN is not configured." };
   }
 
-  const authorization = findHeader(headers, "authorization");
-  if (authorization !== `Bearer ${expectedToken}`) {
+  if (headers.get("authorization") !== `Bearer ${expectedToken}`) {
     return { authorized: false, statusCode: 401, message: "Unauthorized." };
   }
 
   return { authorized: true as const };
 }
 
-function findHeader(headers: Record<string, string | undefined>, name: string): string | undefined {
-  const entry = Object.entries(headers).find(([key]) => key.toLowerCase() === name.toLowerCase());
-  return entry?.[1];
-}
-
 function readEnv(name: string): string | undefined {
-  const value = process.env[name]?.trim();
-  return value && value.length > 0 ? value : undefined;
+  const fromNetlify = globalThis.Netlify?.env.get(name)?.trim();
+  if (fromNetlify) return fromNetlify;
+
+  const fromProcess = process.env[name]?.trim();
+  return fromProcess && fromProcess.length > 0 ? fromProcess : undefined;
 }
 
 function optionalString(value: unknown): string | undefined {
@@ -74,19 +70,27 @@ function optionalString(value: unknown): string | undefined {
   return text.length > 0 ? text : undefined;
 }
 
-function parseBody(body: string | null): Record<string, unknown> {
-  if (!body) return {};
+async function parseBody(request: Request): Promise<Record<string, unknown>> {
   try {
-    return JSON.parse(body) as Record<string, unknown>;
+    return (await request.json()) as Record<string, unknown>;
   } catch {
     return {};
   }
 }
 
-function json(statusCode: number, body: unknown) {
-  return {
-    statusCode,
+function json(status: number, body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status,
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  };
+  });
+}
+
+declare global {
+  var Netlify:
+    | {
+        env: {
+          get(name: string): string | undefined;
+        };
+      }
+    | undefined;
 }
