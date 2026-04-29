@@ -20,6 +20,7 @@ import { RuleBasedBookingExtractionProvider } from "../providers/booking-extract
 import { SystemClock } from "../providers/clock/SystemClock";
 import { LocalFileStorageProvider } from "../providers/file-storage/LocalFileStorageProvider";
 import type { FileStorageProvider } from "../providers/file-storage/FileStorageProvider";
+import { R2FileStorageProvider } from "../providers/file-storage/R2FileStorageProvider";
 import { CryptoIdGenerator } from "../providers/ids/CryptoIdGenerator";
 import { OpenAITextExtractionProvider } from "../providers/text-extraction/OpenAITextExtractionProvider";
 import { parseTravelerAliases, TravelerResolver } from "../providers/travelers/TravelerResolver";
@@ -111,10 +112,26 @@ function createTextExtractionProvider() {
 }
 
 function createFileStorageProvider(idGenerator: CryptoIdGenerator) {
-  return new LocalFileStorageProvider(
-    readRuntimeEnv("LOCAL_FILE_STORAGE_DIR", "TRIPCAL_LOCAL_FILE_STORAGE_DIR") ?? "data/filestore",
-    idGenerator,
-  );
+  const storageType = readRuntimeEnv("FILE_STORAGE", "TRIPCAL_FILE_STORAGE")?.trim().toLowerCase() ?? "local";
+
+  if (storageType === "r2") {
+    return new R2FileStorageProvider(
+      {
+        accountId: readRequiredRuntimeEnv("R2_ACCOUNT_ID"),
+        bucket: readRequiredRuntimeEnv("R2_BUCKET"),
+        accessKeyId: readRequiredRuntimeEnv("R2_ACCESS_KEY_ID"),
+        secretAccessKey: readRequiredRuntimeEnv("R2_SECRET_ACCESS_KEY"),
+        endpoint: readRuntimeEnv("R2_ENDPOINT"),
+      },
+      idGenerator,
+    );
+  }
+
+  if (storageType !== "local") {
+    throw new Error(`Unsupported FILE_STORAGE value: ${storageType}`);
+  }
+
+  return new LocalFileStorageProvider(readRuntimeEnv("LOCAL_FILE_STORAGE_DIR") ?? "data/filestore", idGenerator);
 }
 
 function createTravelerResolver() {
@@ -128,6 +145,14 @@ function readRuntimeEnv(name: string, fallbackName?: string): string | undefined
   if (!existsSync(".env")) return undefined;
 
   return readDotEnv(name) ?? (fallbackName ? readDotEnv(fallbackName) : undefined);
+}
+
+function readRequiredRuntimeEnv(name: string): string {
+  const value = readRuntimeEnv(name);
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
 }
 
 function readProcessEnv(name: string): string | undefined {
