@@ -51,14 +51,48 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first();\nconst { tripcalUrl, tripcalToken, payload } = item.json;\n\ntry {\n  const response = await fetch(tripcalUrl, {\n    method: 'POST',\n    headers: {\n      authorization: `Bearer ${tripcalToken}`,\n      'content-type': 'application/json',\n    },\n    body: JSON.stringify(payload),\n  });\n\n  const responseText = await response.text();\n  if (response.ok) {\n    return [];\n  }\n\n  return [\n    {\n      json: {\n        originalEmail: payload.email,\n        endpoint: tripcalUrl,\n        httpStatus: response.status,\n        httpStatusText: response.statusText,\n        responseBody: responseText,\n      },\n    },\n  ];\n} catch (error) {\n  return [\n    {\n      json: {\n        originalEmail: payload.email,\n        endpoint: tripcalUrl,\n        httpStatus: 'network_error',\n        httpStatusText: error?.name || 'Error',\n        responseBody: error?.message || String(error),\n      },\n    },\n  ];\n}"
+        "method": "POST",
+        "url": "={{ $json.tripcalUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.tripcalToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 120000
+        }
       },
       "id": "SendToTripCal",
       "name": "Send to TripCal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst response = item.json ?? {};\n\nif (!response.error) {\n  return [];\n}\n\nconst config = $('TripCal Config').first().json;\nconst payload = config.payload ?? {};\nconst error = response.error;\n\nreturn [\n  {\n    json: {\n      originalEmail: payload.email,\n      endpoint: config.tripcalUrl,\n      httpStatus: error.httpCode || error.statusCode || error.code || 'request_error',\n      httpStatusText: error.message || error.name || 'TripCal request failed',\n      responseBody: error.description || error.response?.body || error.stack || JSON.stringify(error),\n      attachments: payload.attachments || [],\n    },\n  },\n];"
+      },
+      "id": "BuildTripCalError",
+      "name": "Build TripCal Error",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1040,
+        1300,
         300
       ]
     },
@@ -71,7 +105,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1300,
+        1560,
         300
       ]
     },
@@ -91,13 +125,13 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1560,
+        1820,
         300
       ],
       "credentials": {
         "smtp": {
           "id": "REPLACE_WITH_SMTP_CREDENTIAL_ID",
-          "name": "tripcal-documents@work-with-ease.eu"
+          "name": "tripcal-documents@work-with-ease.eu SMTP"
         }
       }
     }
@@ -137,6 +171,17 @@
       ]
     },
     "Send to TripCal": {
+      "main": [
+        [
+          {
+            "node": "Build TripCal Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build TripCal Error": {
       "main": [
         [
           {

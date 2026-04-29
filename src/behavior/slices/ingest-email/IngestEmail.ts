@@ -1,6 +1,7 @@
 import type { RecordDocumentTextAndExtractBookings } from "../../flows/RecordDocumentTextAndExtractBookings";
 import type { RecordDocumentFileUploadedCommand } from "../../../domain/rpus/record-document-file-uploaded-command/RecordDocumentFileUploadedCommand";
 import type { RecordEmailIngestedCommand } from "../../../domain/rpus/record-email-ingested-command/RecordEmailIngestedCommand";
+import type { ActivityLogProvider } from "../../../providers/activity-log/ActivityLogProvider";
 import type { Clock } from "../../../providers/clock/Clock";
 import type { FileStorageProvider } from "../../../providers/file-storage/FileStorageProvider";
 import type { TextExtractionProvider } from "../../../providers/text-extraction/TextExtractionProvider";
@@ -41,17 +42,28 @@ export class IngestEmail {
     private readonly clock: Clock,
     private readonly fileStorageProvider: FileStorageProvider,
     private readonly textExtractionProvider: TextExtractionProvider,
+    private readonly activityLogProvider: ActivityLogProvider,
     private readonly recordEmailIngestedCommand: RecordEmailIngestedCommand,
     private readonly recordDocumentFileUploadedCommand: RecordDocumentFileUploadedCommand,
     private readonly recordDocumentTextAndExtractBookings: RecordDocumentTextAndExtractBookings,
   ) {}
 
   async process(request: IngestEmailRequest): Promise<IngestEmailResponse> {
+    await this.log("info", "E-Mail-Ingest empfangen", {
+      messageId: request.messageId,
+      from: request.from,
+      subject: request.subject,
+      attachmentCount: request.attachments.length,
+      hasText: hasUsableText(request.text),
+    });
+
     if (request.messageId.trim().length === 0) {
+      await this.log("warning", "E-Mail-Ingest abgelehnt: fehlende Message-ID", {});
       return { status: "rejected", reason: "missing_message_id", message: "Die E-Mail hat keine Message-ID." };
     }
 
     if (!hasUsableText(request.text) && request.attachments.length === 0) {
+      await this.log("warning", "E-Mail-Ingest abgelehnt: keine Dokumente", { messageId: request.messageId });
       return { status: "rejected", reason: "no_documents", message: "Die E-Mail enthält keinen Text und keine Anhänge." };
     }
 
@@ -64,10 +76,17 @@ export class IngestEmail {
     });
 
     if (emailResponse.status === "failed") {
+      await this.log("warning", "E-Mail-Ingest abgelehnt: E-Mail konnte nicht aufgezeichnet werden", {
+        messageId: request.messageId,
+      });
       return { status: "rejected", reason: "missing_message_id", message: "Die E-Mail hat keine Message-ID." };
     }
 
     if (emailResponse.duplicate) {
+      await this.log("info", "E-Mail-Ingest ignoriert: bereits verarbeitet", {
+        messageId: request.messageId,
+        emailIngestedId: emailResponse.emailIngestedId,
+      });
       return {
         status: "accepted",
         emailIngestedId: emailResponse.emailIngestedId,
@@ -85,6 +104,10 @@ export class IngestEmail {
     const warnings: string[] = [];
 
     if (hasUsableText(request.text)) {
+      await this.log("info", "E-Mail-Text wird verarbeitet", {
+        messageId: request.messageId,
+        emailIngestedId: emailResponse.emailIngestedId,
+      });
       const textResult = await this.recordDocumentTextAndExtractBookings.process({
         source: "email",
         emailIngestedId: emailResponse.emailIngestedId,
@@ -92,20 +115,48 @@ export class IngestEmail {
       });
 
       if (textResult.status === "accepted") {
+        await this.log("info", "E-Mail-Text verarbeitet", {
+          messageId: request.messageId,
+          documentTextRecordedId: textResult.documentTextRecordedId,
+          bookingCount: textResult.bookingExtractedIds.length,
+        });
         documentTextRecordedIds.push(textResult.documentTextRecordedId);
         bookingExtractedIds.push(...textResult.bookingExtractedIds);
         warnings.push(...(textResult.warnings ?? []));
       } else {
+        await this.log("warning", "E-Mail-Text konnte nicht verarbeitet werden", {
+          messageId: request.messageId,
+          reason: textResult.reason,
+          message: textResult.message,
+        });
         warnings.push(`E-Mail-Text: ${textResult.message}`);
       }
     }
 
     for (const attachment of request.attachments) {
+      await this.log("info", "E-Mail-Anhang wird verarbeitet", {
+        messageId: request.messageId,
+        emailIngestedId: emailResponse.emailIngestedId,
+        fileName: attachment.fileName,
+        mimeType: attachment.mimeType,
+      });
       const result = await this.processOneAttachment(emailResponse.emailIngestedId, attachment);
       if (result.status === "failed") {
+        await this.log("warning", "E-Mail-Anhang konnte nicht verarbeitet werden", {
+          messageId: request.messageId,
+          fileName: attachment.fileName,
+          message: result.message,
+        });
         warnings.push(`${attachment.fileName}: ${result.message}`);
         continue;
       }
+      await this.log("info", "E-Mail-Anhang verarbeitet", {
+        messageId: request.messageId,
+        fileName: attachment.fileName,
+        documentFileUploadedId: result.documentFileUploadedId,
+        documentTextRecordedId: result.documentTextRecordedId,
+        bookingCount: result.bookingExtractedIds.length,
+      });
       documentFileUploadedIds.push(result.documentFileUploadedId);
       documentTextRecordedIds.push(result.documentTextRecordedId);
       bookingExtractedIds.push(...result.bookingExtractedIds);
@@ -113,6 +164,11 @@ export class IngestEmail {
     }
 
     if (documentTextRecordedIds.length === 0) {
+      await this.log("warning", "E-Mail-Ingest ohne verarbeitete Dokumenttexte beendet", {
+        messageId: request.messageId,
+        emailIngestedId: emailResponse.emailIngestedId,
+        warnings,
+      });
       return {
         status: "rejected",
         reason: "email_processing_failed",
@@ -129,6 +185,23 @@ export class IngestEmail {
       bookingExtractedIds,
       warnings: warnings.length > 0 ? warnings : undefined,
     };
+  }
+
+  private async log(
+    level: "info" | "warning" | "error",
+    message: string,
+    details: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.activityLogProvider.append({
+        level,
+        scope: "email-ingest",
+        message,
+        details,
+      });
+    } catch {
+      // Activity logging must not block document processing.
+    }
   }
 
   private async processOneAttachment(

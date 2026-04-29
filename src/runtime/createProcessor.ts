@@ -17,6 +17,9 @@ import { RecordDocumentFileUploadedCommand } from "../domain/rpus/record-documen
 import { RecordEmailIngestedCommand } from "../domain/rpus/record-email-ingested-command/RecordEmailIngestedCommand";
 import { RecordExtractedBookingsCommand } from "../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
 import { SubmitDocumentTextCommand } from "../domain/rpus/submit-document-text-command/SubmitDocumentTextCommand";
+import type { ActivityLogProvider } from "../providers/activity-log/ActivityLogProvider";
+import { JsonFileActivityLogProvider } from "../providers/activity-log/JsonFileActivityLogProvider";
+import { PostgresActivityLogProvider } from "../providers/activity-log/PostgresActivityLogProvider";
 import { OpenAIBookingExtractionProvider } from "../providers/booking-extraction/OpenAIBookingExtractionProvider";
 import { RuleBasedBookingExtractionProvider } from "../providers/booking-extraction/RuleBasedBookingExtractionProvider";
 import { SystemClock } from "../providers/clock/SystemClock";
@@ -31,6 +34,7 @@ import { UnavailableTextExtractionProvider } from "../providers/text-extraction/
 export type ProcessorRuntime = {
   eventStore: EventStore;
   fileStorageProvider: FileStorageProvider;
+  activityLogProvider: ActivityLogProvider;
   processor: Processor;
 };
 
@@ -42,6 +46,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   const textExtractionProvider = createTextExtractionProvider();
   const travelerResolver = createTravelerResolver();
   const fileStorageProvider = createFileStorageProvider(idGenerator);
+  const activityLogProvider = createActivityLogProvider(idGenerator);
 
   const submitDocumentTextCommand = new SubmitDocumentTextCommand(store, idGenerator);
   const deleteBookingCommand = new DeleteBookingCommand(store, idGenerator, clock);
@@ -63,6 +68,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
     clock,
     fileStorageProvider,
     textExtractionProvider,
+    activityLogProvider,
     recordEmailIngestedCommand,
     recordDocumentFileUploadedCommand,
     recordDocumentTextAndExtractBookings,
@@ -79,6 +85,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   return {
     eventStore: store,
     fileStorageProvider,
+    activityLogProvider,
     processor: new Processor(
       submitDocumentText,
       submitDocumentImage,
@@ -150,6 +157,15 @@ function createFileStorageProvider(idGenerator: CryptoIdGenerator) {
   }
 
   return new LocalFileStorageProvider(readRuntimeEnv("LOCAL_FILE_STORAGE_DIR") ?? "data/filestore", idGenerator);
+}
+
+function createActivityLogProvider(idGenerator: CryptoIdGenerator): ActivityLogProvider {
+  const storeType = readRuntimeEnv("EVENT_STORE", "TRIPCAL_EVENT_STORE")?.trim().toLowerCase() ?? "memory";
+  if (storeType === "postgres") {
+    return new PostgresActivityLogProvider(readRequiredRuntimeEnv("DATABASE_URL"), idGenerator);
+  }
+
+  return new JsonFileActivityLogProvider(readRuntimeEnv("ACTIVITY_LOG_FILE") ?? "data/activity-log/entries.json", idGenerator);
 }
 
 function createTravelerResolver() {

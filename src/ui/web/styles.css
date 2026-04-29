@@ -109,6 +109,24 @@ h1 {
   border-top: 1px solid #d7dedb;
 }
 
+.logLinkWrap {
+  display: flex;
+  justify-content: center;
+  padding: 18px 0 6px;
+}
+
+.logLinkWrap a {
+  color: #71817d;
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.logLinkWrap a:hover {
+  color: #40504d;
+  text-decoration: underline;
+}
+
 .emptyState {
   min-height: 340px;
   display: grid;

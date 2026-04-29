@@ -234,6 +234,12 @@ export function App() {
         )}
       </section>
 
+      <div className="logLinkWrap">
+        <a href="/api/activity-log" target="_blank" rel="noreferrer">
+          Log
+        </a>
+      </div>
+
       {showSubmit ? (
         <div className="dialogBackdrop" role="presentation">
           <section className="dialog" aria-label="Dokument einreichen" onPaste={handleDialogPaste}>

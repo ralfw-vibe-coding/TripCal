@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { getProcessorRuntime } from "./src/runtime/singleton";
 import { readDocumentFile } from "./src/runtime/readDocumentFile";
+import { readActivityLog } from "./src/runtime/readActivityLog";
 
 export default defineConfig(({ mode }) => {
   Object.assign(process.env, loadEnv(mode, process.cwd(), ""));
@@ -36,6 +37,15 @@ function tripCalApiPlugin() {
         const runtime = await getProcessorRuntime();
         const result = await runtime.processor.submitDocumentText({ text: String(body.text ?? "") });
         sendJson(response, result.status === "accepted" ? 200 : 400, result);
+      });
+
+      server.middlewares.use("/api/activity-log", async (request, response) => {
+        if (request.method !== "GET") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+        const runtime = await getProcessorRuntime();
+        sendJson(response, 200, await readActivityLog(runtime, 100));
       });
 
       server.middlewares.use("/api/submit-document-image", async (request, response) => {

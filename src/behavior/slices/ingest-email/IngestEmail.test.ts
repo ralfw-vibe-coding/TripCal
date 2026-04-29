@@ -5,6 +5,7 @@ import { RecordDocumentFileUploadedCommand } from "../../../domain/rpus/record-d
 import { RecordEmailIngestedCommand } from "../../../domain/rpus/record-email-ingested-command/RecordEmailIngestedCommand";
 import { RecordExtractedBookingsCommand } from "../../../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
 import { SubmitDocumentTextCommand } from "../../../domain/rpus/submit-document-text-command/SubmitDocumentTextCommand";
+import type { ActivityLogProvider } from "../../../providers/activity-log/ActivityLogProvider";
 import type { BookingExtractionProvider } from "../../../providers/booking-extraction/BookingExtractionProvider";
 import type { Clock } from "../../../providers/clock/Clock";
 import type { FileStorageProvider } from "../../../providers/file-storage/FileStorageProvider";
@@ -63,6 +64,13 @@ const bookingExtractionProvider: BookingExtractionProvider = {
   },
 };
 
+const activityLogProvider: ActivityLogProvider = {
+  async append() {},
+  async listLatest() {
+    return [];
+  },
+};
+
 describe("IngestEmail", () => {
   it("records email text and attachments with references to the ingested email", async () => {
     const eventStore = new MemoryEventStore();
@@ -78,6 +86,7 @@ describe("IngestEmail", () => {
       clock,
       fileStorageProvider,
       textExtractionProvider,
+      activityLogProvider,
       new RecordEmailIngestedCommand(eventStore, ids),
       new RecordDocumentFileUploadedCommand(eventStore, ids),
       sharedFlow,
