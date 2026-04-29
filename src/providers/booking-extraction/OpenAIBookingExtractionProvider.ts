@@ -18,6 +18,8 @@ type BookingExtractionJson = {
   bookings?: Array<{
     title?: unknown;
     type?: unknown;
+    serviceIdentifier?: unknown;
+    operator?: unknown;
     start?: unknown;
     end?: unknown;
     from?: unknown;
@@ -58,9 +60,13 @@ export class OpenAIBookingExtractionProvider implements BookingExtractionProvide
         model: this.model,
         instructions: [
           "Extrahiere Reisebuchungen aus unstrukturiertem Dokumenttext.",
+          "Ein Dokumenttext kann mehrere Buchungen und mehrere Buchungstypen enthalten. Bestimme type pro Buchung unabhängig.",
           "Gib ausschließlich Daten zurück, die für einen Reisekalender nützlich sind.",
-          "Strukturiere nur Titel, Art, Start, Ende, Von, Nach und Reisende.",
-          "Alle weiteren Angaben wie Buchungsnummern, Flugnummern, Anbieter, Check-in, Sitzplätze oder Adressen gehören als gut lesbarer Markdown-Text in details.",
+          "Strukturiere title, type, serviceIdentifier, operator, start, end, from, to und travelers.",
+          "serviceIdentifier ist die konkrete Service-Kennung wie Flugnummer, Zugnummer, Buslinie oder Fährlinie, z.B. LH123, ICE 789, K6843, Bus 42.",
+          "operator ist das ausführende Unternehmen oder der Anbieter, z.B. Lufthansa, Deutsche Bahn, Air Cambodia, SNAV, Hertz.",
+          "Für event, restaurant und activity lasse serviceIdentifier und operator weg, außer sie sind ausdrücklich sinnvoll im Text genannt.",
+          "Alle weiteren Angaben wie Buchungsnummern, Check-in, Sitzplätze, Gepäck, Adressen oder Stornoregeln gehören als gut lesbarer Markdown-Text in details.",
           "Verwende ISO-Strings für Datums-/Zeitwerte, möglichst inklusive Zeitzone, wenn sie im Text erkennbar ist.",
         ].join(" "),
         input: [
@@ -107,6 +113,8 @@ const bookingExtractionSchema = {
         properties: {
           title: { type: "string" },
           type: { type: "string", enum: bookingTypes },
+          serviceIdentifier: { type: "string" },
+          operator: { type: "string" },
           start: { $ref: "#/$defs/dateTime" },
           end: { anyOf: [{ $ref: "#/$defs/dateTime" }, { type: "null" }] },
           from: { anyOf: [{ $ref: "#/$defs/place" }, { type: "null" }] },
@@ -176,6 +184,8 @@ function parseBookings(parsed: BookingExtractionJson): ExtractedBooking[] {
     return {
       title: parseString(booking.title) ?? `Buchung ${index + 1}`,
       type: parseBookingType(booking.type),
+      serviceIdentifier: parseString(booking.serviceIdentifier),
+      operator: parseString(booking.operator),
       start,
       end: parseDateTime(booking.end),
       from: parsePlace(booking.from),
@@ -230,4 +240,3 @@ function parseWarnings(value: unknown): string[] | undefined {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
-

@@ -11,6 +11,7 @@ import type { Clock } from "../../../providers/clock/Clock";
 import { LocalFileStorageProvider } from "../../../providers/file-storage/LocalFileStorageProvider";
 import type { IdGenerator } from "../../../providers/ids/IdGenerator";
 import type { TextExtractionProvider } from "../../../providers/text-extraction/TextExtractionProvider";
+import { TravelerResolver } from "../../../providers/travelers/TravelerResolver";
 import { SubmitDocumentFiles } from "./SubmitDocumentFiles";
 
 class FixedClock implements Clock {
@@ -62,7 +63,7 @@ describe("SubmitDocumentFiles", () => {
       clock,
       new SubmitDocumentTextCommand(eventStore, ids),
       bookingExtractionProvider,
-      new RecordExtractedBookingsCommand(eventStore, ids),
+      new RecordExtractedBookingsCommand(eventStore, ids, new TravelerResolver({ RW: ["Ralf"], AK: ["Ralfs Frau"] })),
     );
     const slice = new SubmitDocumentFiles(
       clock,

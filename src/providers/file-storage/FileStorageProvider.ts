@@ -11,5 +11,5 @@ export type StoreFileResponse = {
 
 export interface FileStorageProvider {
   storeFile(request: StoreFileRequest): Promise<StoreFileResponse>;
+  readFile(storageKey: string): Promise<Uint8Array>;
 }
-

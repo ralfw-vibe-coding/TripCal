@@ -1,18 +1,31 @@
 import {
+  Activity,
   CalendarDays,
+  Bus,
+  Car,
+  ChevronDown,
+  ChevronRight,
   FileText,
+  FerrisWheel,
   Image as ImageIcon,
   Loader2,
+  Plane,
   Plus,
   RefreshCw,
+  Ship,
   Send,
+  TrainFront,
+  Trash2,
   Upload,
+  Utensils,
+  Warehouse,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { ChangeEvent, ClipboardEvent, DragEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarBooking } from "../../domain/model";
-import { submitDocumentFiles, submitDocumentImage, submitDocumentText, viewBookingCalendar } from "./api";
+import { deleteBooking, submitDocumentFiles, submitDocumentImage, submitDocumentText, viewBookingCalendar } from "./api";
 
 type PastedImage = {
   dataUrl: string;
@@ -41,6 +54,8 @@ export function App() {
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(true);
   const [showSubmit, setShowSubmit] = useState(false);
   const [message, setMessage] = useState<string | undefined>();
+  const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(() => new Set());
+  const [pendingDeleteBookingId, setPendingDeleteBookingId] = useState<string | undefined>();
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -89,10 +104,31 @@ export function App() {
     }
   }
 
+  async function handleDeleteBooking(bookingExtractedId: string) {
+    if (pendingDeleteBookingId !== bookingExtractedId) {
+      setPendingDeleteBookingId(bookingExtractedId);
+      return;
+    }
+
+    setMessage(undefined);
+    const response = await deleteBooking(bookingExtractedId);
+    if (response.status === "accepted") {
+      setPendingDeleteBookingId(undefined);
+      setExpandedBookingIds((current) => {
+        const next = new Set(current);
+        next.delete(bookingExtractedId);
+        return next;
+      });
+      await loadCalendar();
+    } else {
+      setMessage(response.message);
+    }
+  }
+
   const groupedBookings = useMemo(() => groupBookingsByDate(bookings), [bookings]);
 
   return (
-    <main className="appShell">
+    <main className="appShell" onClick={clearPendingDelete}>
       <header className="topBar">
         <div>
           <div className="eyebrow">TripCal</div>
@@ -130,23 +166,66 @@ export function App() {
               </div>
               <div className="bookingList">
                 {group.bookings.map((booking) => (
-                  <article className="bookingCard" key={booking.bookingExtractedId}>
-                    <div className="bookingHeader">
-                      <div>
-                        <div className="bookingMeta">{formatRange(booking)}</div>
-                        <h2>{booking.title}</h2>
+                  <article className="bookingCard compact" key={booking.bookingExtractedId}>
+                    <div className="bookingCompactRow">
+                      <BookingTypeIcon type={booking.type} />
+                      <div className="bookingCompactMain">
+                        <div className="bookingCompactTime">
+                          <strong>{formatStartTime(booking)}</strong>
+                          {booking.end ? <span>{formatEndTime(booking)}</span> : null}
+                        </div>
+                        <h2>{bookingPrimary(booking)}</h2>
+                        {bookingSecondary(booking) ? <div className="bookingSecondary">{bookingSecondary(booking)}</div> : null}
                       </div>
+                      {booking.travelers.length > 0 ? <TravelerBadges travelers={booking.travelers} /> : null}
                       <span className="statusPill">{booking.status === "needs_review" ? "Review" : booking.status}</span>
+                      <button
+                        className={pendingDeleteBookingId === booking.bookingExtractedId ? "deleteButton confirm" : "deleteButton"}
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleDeleteBooking(booking.bookingExtractedId);
+                        }}
+                        title={pendingDeleteBookingId === booking.bookingExtractedId ? "Löschen bestätigen" : "Buchung löschen"}
+                      >
+                        {pendingDeleteBookingId === booking.bookingExtractedId ? "?" : <Trash2 size={16} />}
+                      </button>
+                      <button
+                        className="expandButton"
+                        type="button"
+                        onClick={() => toggleBookingExpanded(booking.bookingExtractedId)}
+                        title={expandedBookingIds.has(booking.bookingExtractedId) ? "Einklappen" : "Aufklappen"}
+                      >
+                        {expandedBookingIds.has(booking.bookingExtractedId) ? (
+                          <ChevronDown size={18} />
+                        ) : (
+                          <ChevronRight size={18} />
+                        )}
+                      </button>
                     </div>
-                    <div className="routeLine">
-                      <span>{booking.from?.name ?? "Start offen"}</span>
-                      <span className="arrow">→</span>
-                      <span>{booking.to?.name ?? "Ziel offen"}</span>
-                    </div>
-                    {booking.travelers.length > 0 ? (
-                      <div className="travelers">{booking.travelers.join(", ")}</div>
+                    {expandedBookingIds.has(booking.bookingExtractedId) ? (
+                      <div className="bookingExpanded">
+                        <div className="routeLine">
+                          <span>{booking.from?.name ?? "Start offen"}</span>
+                          <span className="arrow">→</span>
+                          <span>{booking.to?.name ?? "Ziel offen"}</span>
+                        </div>
+                        {booking.travelers.length > 0 ? (
+                          <div className="travelers">{booking.travelers.join(", ")}</div>
+                        ) : null}
+                        <pre className="details">{booking.details}</pre>
+                        {booking.sourceDocument ? (
+                          <a
+                            className="documentLink"
+                            href={`/api/documents/${booking.sourceDocument.documentFileUploadedId}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Originaldokument öffnen: {booking.sourceDocument.originalFileName}
+                          </a>
+                        ) : null}
+                      </div>
                     ) : null}
-                    <pre className="details">{booking.details}</pre>
                   </article>
                 ))}
               </div>
@@ -358,6 +437,24 @@ export function App() {
   function removePendingFile(id: string) {
     setPendingFiles((current) => current.filter((file) => file.id !== id));
   }
+
+  function toggleBookingExpanded(id: string) {
+    setExpandedBookingIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function clearPendingDelete() {
+    if (pendingDeleteBookingId) {
+      setPendingDeleteBookingId(undefined);
+    }
+  }
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -386,6 +483,127 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
+
+function BookingTypeIcon({ type }: { type: CalendarBooking["type"] }) {
+  const config = bookingTypeIconConfig[type] ?? bookingTypeIconConfig.other;
+  const Icon = config.icon;
+  return (
+    <span className="bookingTypeIcon" style={{ color: config.color, backgroundColor: config.background }} title={config.label}>
+      <Icon size={22} strokeWidth={2.4} />
+    </span>
+  );
+}
+
+function TravelerBadges({ travelers }: { travelers: string[] }) {
+  return (
+    <div className="travelerBadges" aria-label="Reisende">
+      {travelers.map((traveler) => (
+        <span className="travelerBadge" key={traveler} title={traveler} style={travelerBadgeStyle(traveler)}>
+          {traveler}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function travelerBadgeStyle(traveler: string) {
+  const palette = travelerPalette[traveler] ?? fallbackTravelerPalette[hashString(traveler) % fallbackTravelerPalette.length];
+  return {
+    backgroundColor: palette.background,
+    color: palette.text,
+  };
+}
+
+const travelerPalette: Record<string, { background: string; text: string }> = {
+  RW: { background: "#2563a9", text: "#ffffff" },
+  AK: { background: "#b32958", text: "#ffffff" },
+};
+
+const fallbackTravelerPalette = [
+  { background: "#16824b", text: "#ffffff" },
+  { background: "#7c3f9d", text: "#ffffff" },
+  { background: "#087487", text: "#ffffff" },
+  { background: "#8a4f00", text: "#ffffff" },
+];
+
+function hashString(value: string): number {
+  let hash = 0;
+  for (const character of value) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+  return hash;
+}
+
+const bookingTypeIconConfig: Record<
+  CalendarBooking["type"],
+  {
+    icon: LucideIcon;
+    label: string;
+    color: string;
+    background: string;
+  }
+> = {
+  flight: {
+    icon: Plane,
+    label: "Flug",
+    color: "#16824b",
+    background: "#e7f5ee",
+  },
+  accommodation: {
+    icon: Warehouse,
+    label: "Unterkunft",
+    color: "#2563a9",
+    background: "#e9f1fb",
+  },
+  train: {
+    icon: TrainFront,
+    label: "Zug",
+    color: "#8a4f00",
+    background: "#fff1dc",
+  },
+  bus: {
+    icon: Bus,
+    label: "Bus",
+    color: "#7c3f9d",
+    background: "#f3e9fb",
+  },
+  ferry: {
+    icon: Ship,
+    label: "Fähre",
+    color: "#087487",
+    background: "#e4f6f8",
+  },
+  car: {
+    icon: Car,
+    label: "Auto",
+    color: "#48525c",
+    background: "#edf0f2",
+  },
+  event: {
+    icon: FerrisWheel,
+    label: "Event",
+    color: "#b32958",
+    background: "#fde8ef",
+  },
+  restaurant: {
+    icon: Utensils,
+    label: "Restaurant",
+    color: "#9a3b1e",
+    background: "#fdeee8",
+  },
+  activity: {
+    icon: Activity,
+    label: "Aktivität",
+    color: "#647100",
+    background: "#f2f5d9",
+  },
+  other: {
+    icon: FileText,
+    label: "Sonstiges",
+    color: "#5b6f6a",
+    background: "#edf2f0",
+  },
+};
 
 type BookingGroup = {
   date: string;
@@ -437,5 +655,68 @@ function formatDateTime(value: string): string {
     year: "numeric",
     hour: value.includes("T") ? "2-digit" : undefined,
     minute: value.includes("T") ? "2-digit" : undefined,
+  }).format(date);
+}
+
+function bookingPrimary(booking: CalendarBooking): string {
+  if (isTransportBooking(booking)) {
+    const route = formatRoute(booking);
+    return [booking.serviceIdentifier, route || booking.title].filter(Boolean).join(" · ");
+  }
+
+  if (booking.type === "accommodation") {
+    return booking.to?.name ?? booking.from?.name ?? booking.title;
+  }
+
+  return booking.title;
+}
+
+function bookingSecondary(booking: CalendarBooking): string | undefined {
+  if (isTransportBooking(booking)) {
+    return booking.operator;
+  }
+
+  if (booking.type === "accommodation") {
+    return formatPlace(booking.to ?? booking.from);
+  }
+
+  if (booking.type === "restaurant" || booking.type === "event" || booking.type === "activity") {
+    return formatPlace(booking.to ?? booking.from) ?? booking.operator;
+  }
+
+  return formatPlace(booking.to ?? booking.from) ?? booking.operator;
+}
+
+function isTransportBooking(booking: CalendarBooking): boolean {
+  return ["flight", "train", "bus", "ferry"].includes(booking.type);
+}
+
+function formatRoute(booking: CalendarBooking): string | undefined {
+  if (!booking.from?.name && !booking.to?.name) return undefined;
+  return `${booking.from?.name ?? "Start offen"} → ${booking.to?.name ?? "Ziel offen"}`;
+}
+
+function formatPlace(place: CalendarBooking["from"]): string | undefined {
+  if (!place) return undefined;
+  return [place.name, place.city, place.country].filter(Boolean).join(", ");
+}
+
+function formatStartTime(booking: CalendarBooking): string {
+  return formatTime(booking.start.value);
+}
+
+function formatEndTime(booking: CalendarBooking): string {
+  if (!booking.end) return "";
+  const sameDay = booking.start.value.slice(0, 10) === booking.end.value.slice(0, 10);
+  return sameDay ? formatTime(booking.end.value) : formatDateTime(booking.end.value);
+}
+
+function formatTime(value: string): string {
+  const normalized = value.includes("T") ? value : `${value}T00:00:00`;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return value.includes("T") ? value.slice(11, 16) : "";
+  return new Intl.DateTimeFormat("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(date);
 }

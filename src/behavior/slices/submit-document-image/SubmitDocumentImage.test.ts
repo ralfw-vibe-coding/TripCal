@@ -7,6 +7,7 @@ import type { BookingExtractionProvider } from "../../../providers/booking-extra
 import type { Clock } from "../../../providers/clock/Clock";
 import type { IdGenerator } from "../../../providers/ids/IdGenerator";
 import type { TextExtractionProvider } from "../../../providers/text-extraction/TextExtractionProvider";
+import { TravelerResolver } from "../../../providers/travelers/TravelerResolver";
 import { SubmitDocumentImage } from "./SubmitDocumentImage";
 
 class FixedClock implements Clock {
@@ -57,7 +58,7 @@ describe("SubmitDocumentImage", () => {
       new FixedClock(),
       new SubmitDocumentTextCommand(eventStore, ids),
       bookingExtractionProvider,
-      new RecordExtractedBookingsCommand(eventStore, ids),
+      new RecordExtractedBookingsCommand(eventStore, ids, new TravelerResolver({ RW: ["Ralf"], AK: ["Ralfs Frau"] })),
     );
     const slice = new SubmitDocumentImage(textExtractionProvider, sharedFlow);
 
@@ -77,4 +78,3 @@ describe("SubmitDocumentImage", () => {
     expect(stored.events[0].payload.source).toBe("image");
   });
 });
-

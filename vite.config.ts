@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { getProcessorRuntime } from "./src/runtime/singleton";
+import { readDocumentFile } from "./src/runtime/readDocumentFile";
 
 export default defineConfig(({ mode }) => {
   Object.assign(process.env, loadEnv(mode, process.cwd(), ""));
@@ -63,6 +64,44 @@ function tripCalApiPlugin() {
         });
         sendJson(response, result.status === "accepted" ? 200 : 400, result);
       });
+
+      server.middlewares.use("/api/delete-booking", async (request, response) => {
+        if (request.method !== "POST") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+        const body = await readJsonBody(request);
+        const runtime = await getProcessorRuntime();
+        const result = await runtime.processor.deleteBooking({
+          bookingExtractedId: String(body.bookingExtractedId ?? ""),
+        });
+        sendJson(response, result.status === "accepted" ? 200 : 400, result);
+      });
+
+      server.middlewares.use("/api/documents", async (request, response) => {
+        if (request.method !== "GET") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+
+        const documentFileUploadedId = request.url?.replace(/^\/+/, "");
+        if (!documentFileUploadedId) {
+          sendJson(response, 404, { message: "Document not found" });
+          return;
+        }
+
+        const runtime = await getProcessorRuntime();
+        const result = await readDocumentFile(runtime, decodeURIComponent(documentFileUploadedId));
+        if (result.status === "not_found") {
+          sendJson(response, 404, { message: "Document not found" });
+          return;
+        }
+
+        response.statusCode = 200;
+        response.setHeader("content-type", result.mimeType || "application/octet-stream");
+        response.setHeader("content-disposition", contentDispositionInline(result.originalFileName));
+        response.end(Buffer.from(result.bytes));
+      });
     },
   };
 }
@@ -94,4 +133,11 @@ function sendJson(response: import("node:http").ServerResponse, statusCode: numb
   response.statusCode = statusCode;
   response.setHeader("content-type", "application/json");
   response.end(JSON.stringify(body));
+}
+
+function contentDispositionInline(fileName: string): string {
+  const fallback = fileName
+    .replace(/[^\x20-\x7E]/g, "_")
+    .replace(/["\\\r\n]/g, "_");
+  return `inline; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }

@@ -6,6 +6,7 @@ import { SubmitDocumentTextCommand } from "../../../domain/rpus/submit-document-
 import type { BookingExtractionProvider } from "../../../providers/booking-extraction/BookingExtractionProvider";
 import type { Clock } from "../../../providers/clock/Clock";
 import type { IdGenerator } from "../../../providers/ids/IdGenerator";
+import { TravelerResolver } from "../../../providers/travelers/TravelerResolver";
 import { SubmitDocumentText } from "./SubmitDocumentText";
 
 class FixedClock implements Clock {
@@ -50,7 +51,7 @@ describe("SubmitDocumentText", () => {
         new FixedClock(),
         new SubmitDocumentTextCommand(eventStore, ids),
         extractionProvider,
-        new RecordExtractedBookingsCommand(eventStore, ids),
+        new RecordExtractedBookingsCommand(eventStore, ids, new TravelerResolver({ RW: ["Ralf"], AK: ["Ralfs Frau"] })),
       ),
     );
 
@@ -69,5 +70,6 @@ describe("SubmitDocumentText", () => {
       "BookingExtractedFromDocumentTextV1",
     ]);
     expect(stored.events[0].payload.source).toBe("text");
+    expect(stored.events[1].payload.travelers).toEqual(["RW", "AK"]);
   });
 });

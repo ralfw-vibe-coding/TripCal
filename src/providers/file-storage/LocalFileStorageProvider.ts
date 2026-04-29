@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname } from "node:path";
 import type { IdGenerator } from "../ids/IdGenerator";
 import type { FileStorageProvider, StoreFileRequest, StoreFileResponse } from "./FileStorageProvider";
@@ -20,6 +20,10 @@ export class LocalFileStorageProvider implements FileStorageProvider {
       storageKey,
       sizeBytes: bytes.byteLength,
     };
+  }
+
+  async readFile(storageKey: string): Promise<Uint8Array> {
+    return readFile(`${this.rootDirectory}/${storageKey}`);
   }
 }
 

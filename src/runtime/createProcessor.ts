@@ -5,10 +5,12 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { Processor } from "../behavior/Processor";
 import { RecordDocumentTextAndExtractBookings } from "../behavior/flows/RecordDocumentTextAndExtractBookings";
+import { DeleteBooking } from "../behavior/slices/delete-booking/DeleteBooking";
 import { SubmitDocumentImage } from "../behavior/slices/submit-document-image/SubmitDocumentImage";
 import { SubmitDocumentFiles } from "../behavior/slices/submit-document-files/SubmitDocumentFiles";
 import { SubmitDocumentText } from "../behavior/slices/submit-document-text/SubmitDocumentText";
 import { ViewBookingCalendar } from "../behavior/slices/view-booking-calendar/ViewBookingCalendar";
+import { DeleteBookingCommand } from "../domain/rpus/delete-booking-command/DeleteBookingCommand";
 import { GetBookingCalendarQuery } from "../domain/rpus/get-booking-calendar-query/GetBookingCalendarQuery";
 import { RecordDocumentFileUploadedCommand } from "../domain/rpus/record-document-file-uploaded-command/RecordDocumentFileUploadedCommand";
 import { RecordExtractedBookingsCommand } from "../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
@@ -17,12 +19,15 @@ import { OpenAIBookingExtractionProvider } from "../providers/booking-extraction
 import { RuleBasedBookingExtractionProvider } from "../providers/booking-extraction/RuleBasedBookingExtractionProvider";
 import { SystemClock } from "../providers/clock/SystemClock";
 import { LocalFileStorageProvider } from "../providers/file-storage/LocalFileStorageProvider";
+import type { FileStorageProvider } from "../providers/file-storage/FileStorageProvider";
 import { CryptoIdGenerator } from "../providers/ids/CryptoIdGenerator";
 import { OpenAITextExtractionProvider } from "../providers/text-extraction/OpenAITextExtractionProvider";
+import { parseTravelerAliases, TravelerResolver } from "../providers/travelers/TravelerResolver";
 import { UnavailableTextExtractionProvider } from "../providers/text-extraction/UnavailableTextExtractionProvider";
 
 export type ProcessorRuntime = {
   eventStore: EventStore;
+  fileStorageProvider: FileStorageProvider;
   processor: Processor;
 };
 
@@ -32,12 +37,14 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   const idGenerator = new CryptoIdGenerator();
   const extractionProvider = createBookingExtractionProvider();
   const textExtractionProvider = createTextExtractionProvider();
+  const travelerResolver = createTravelerResolver();
   const fileStorageProvider = createFileStorageProvider(idGenerator);
 
   const submitDocumentTextCommand = new SubmitDocumentTextCommand(store, idGenerator);
+  const deleteBookingCommand = new DeleteBookingCommand(store, idGenerator, clock);
   const recordDocumentFileUploadedCommand = new RecordDocumentFileUploadedCommand(store, idGenerator);
-  const recordExtractedBookingsCommand = new RecordExtractedBookingsCommand(store, idGenerator);
-  const getBookingCalendarQuery = new GetBookingCalendarQuery(store);
+  const recordExtractedBookingsCommand = new RecordExtractedBookingsCommand(store, idGenerator, travelerResolver);
+  const getBookingCalendarQuery = new GetBookingCalendarQuery(store, travelerResolver);
 
   const recordDocumentTextAndExtractBookings = new RecordDocumentTextAndExtractBookings(
     clock,
@@ -47,6 +54,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   );
   const submitDocumentText = new SubmitDocumentText(recordDocumentTextAndExtractBookings);
   const submitDocumentImage = new SubmitDocumentImage(textExtractionProvider, recordDocumentTextAndExtractBookings);
+  const deleteBooking = new DeleteBooking(deleteBookingCommand);
   const submitDocumentFiles = new SubmitDocumentFiles(
     clock,
     fileStorageProvider,
@@ -58,7 +66,8 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
 
   return {
     eventStore: store,
-    processor: new Processor(submitDocumentText, submitDocumentImage, submitDocumentFiles, viewBookingCalendar),
+    fileStorageProvider,
+    processor: new Processor(submitDocumentText, submitDocumentImage, submitDocumentFiles, deleteBooking, viewBookingCalendar),
   };
 }
 
@@ -106,6 +115,10 @@ function createFileStorageProvider(idGenerator: CryptoIdGenerator) {
     readRuntimeEnv("LOCAL_FILE_STORAGE_DIR", "TRIPCAL_LOCAL_FILE_STORAGE_DIR") ?? "data/filestore",
     idGenerator,
   );
+}
+
+function createTravelerResolver() {
+  return new TravelerResolver(parseTravelerAliases(readRuntimeEnv("TRAVELERS_JSON")));
 }
 
 function readRuntimeEnv(name: string, fallbackName?: string): string | undefined {

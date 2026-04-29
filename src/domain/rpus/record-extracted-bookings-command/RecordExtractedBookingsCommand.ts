@@ -1,6 +1,7 @@
 import { createFilter } from "@ricofritzsche/eventstore";
 import type { EventStore } from "@ricofritzsche/eventstore";
 import type { IdGenerator } from "../../../providers/ids/IdGenerator";
+import type { TravelerResolver } from "../../../providers/travelers/TravelerResolver";
 import type { BookingExtractedFromDocumentTextV1 } from "../../events/events";
 import { bookingExtractedFromDocumentTextV1, documentTextRecordedV1 } from "../../events/eventTypes";
 import type { ExtractedBooking } from "../../model";
@@ -25,6 +26,7 @@ export class RecordExtractedBookingsCommand {
   constructor(
     private readonly eventStore: EventStore,
     private readonly idGenerator: IdGenerator,
+    private readonly travelerResolver: TravelerResolver,
   ) {}
 
   async process(request: RecordExtractedBookingsCommandRequest): Promise<RecordExtractedBookingsCommandResponse> {
@@ -38,23 +40,29 @@ export class RecordExtractedBookingsCommand {
       return { status: "failed", reason: "document_text_recorded_not_found" };
     }
 
-    const events: BookingExtractedFromDocumentTextV1[] = request.bookings.map((booking) => ({
-      eventType: bookingExtractedFromDocumentTextV1,
-      payload: {
-        id: this.idGenerator.newId(),
-        documentTextRecordedId: request.documentTextRecordedId,
-        title: booking.title,
-        type: booking.type,
-        status: "needs_review",
-        start: booking.start,
-        end: booking.end,
-        from: booking.from,
-        to: booking.to,
-        travelers: booking.travelers,
-        details: booking.details,
-        extractedAt: request.extractedAt,
-      },
-    }));
+    const events: BookingExtractedFromDocumentTextV1[] = request.bookings.map((booking) => {
+      const resolvedTravelers = this.travelerResolver.resolve(booking.travelers);
+      return {
+        eventType: bookingExtractedFromDocumentTextV1,
+        payload: {
+          id: this.idGenerator.newId(),
+          documentTextRecordedId: request.documentTextRecordedId,
+          title: booking.title,
+          type: booking.type,
+          serviceIdentifier: booking.serviceIdentifier,
+          operator: booking.operator,
+          status: "needs_review",
+          start: booking.start,
+          end: booking.end,
+          from: booking.from,
+          to: booking.to,
+          travelers: resolvedTravelers.travelers,
+          rawTravelers: resolvedTravelers.rawTravelers,
+          details: booking.details,
+          extractedAt: request.extractedAt,
+        },
+      };
+    });
 
     await this.eventStore.append(events, documentTextFilter, documentTextResult.maxSequenceNumber);
 
@@ -64,4 +72,3 @@ export class RecordExtractedBookingsCommand {
     };
   }
 }
-

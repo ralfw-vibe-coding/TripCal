@@ -27,6 +27,8 @@ export type BookingPlace = {
 export type ExtractedBooking = {
   title: string;
   type: BookingType;
+  serviceIdentifier?: string;
+  operator?: string;
   start: BookingDateTime;
   end?: BookingDateTime;
   from?: BookingPlace;
@@ -38,14 +40,20 @@ export type ExtractedBooking = {
 export type CalendarBooking = {
   bookingExtractedId: string;
   documentTextRecordedId: string;
+  sourceDocument?: {
+    documentFileUploadedId: string;
+    originalFileName: string;
+  };
   title: string;
   type: BookingType;
+  serviceIdentifier?: string;
+  operator?: string;
   status: BookingStatus;
   start: BookingDateTime;
   end?: BookingDateTime;
   from?: BookingPlace;
   to?: BookingPlace;
   travelers: string[];
+  rawTravelers?: string[];
   details: string;
 };
-

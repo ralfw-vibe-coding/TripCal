@@ -1,6 +1,11 @@
 import type { Event } from "@ricofritzsche/eventstore";
 import type { BookingDateTime, BookingPlace, BookingStatus, BookingType } from "../model";
-import { bookingExtractedFromDocumentTextV1, documentFileUploadedV1, documentTextRecordedV1 } from "./eventTypes";
+import {
+  bookingDeletedV1,
+  bookingExtractedFromDocumentTextV1,
+  documentFileUploadedV1,
+  documentTextRecordedV1,
+} from "./eventTypes";
 
 export type DocumentTextRecordedV1Payload =
   | {
@@ -41,12 +46,15 @@ export type BookingExtractedFromDocumentTextV1Payload = {
   documentTextRecordedId: string;
   title: string;
   type: BookingType;
+  serviceIdentifier?: string;
+  operator?: string;
   status: Extract<BookingStatus, "needs_review">;
   start: BookingDateTime;
   end?: BookingDateTime;
   from?: BookingPlace;
   to?: BookingPlace;
   travelers: string[];
+  rawTravelers?: string[];
   details: string;
   extractedAt: string;
 };
@@ -56,7 +64,22 @@ export type BookingExtractedFromDocumentTextV1 = Event & {
   payload: BookingExtractedFromDocumentTextV1Payload;
 };
 
-export type TripCalEvent = DocumentTextRecordedV1 | DocumentFileUploadedV1 | BookingExtractedFromDocumentTextV1;
+export type BookingDeletedV1Payload = {
+  id: string;
+  bookingExtractedId: string;
+  deletedAt: string;
+};
+
+export type BookingDeletedV1 = Event & {
+  eventType: typeof bookingDeletedV1;
+  payload: BookingDeletedV1Payload;
+};
+
+export type TripCalEvent =
+  | DocumentTextRecordedV1
+  | DocumentFileUploadedV1
+  | BookingExtractedFromDocumentTextV1
+  | BookingDeletedV1;
 
 export function isDocumentTextRecordedV1(event: Event): event is DocumentTextRecordedV1 {
   return event.eventType === documentTextRecordedV1;
@@ -70,4 +93,8 @@ export function isBookingExtractedFromDocumentTextV1(
   event: Event,
 ): event is BookingExtractedFromDocumentTextV1 {
   return event.eventType === bookingExtractedFromDocumentTextV1;
+}
+
+export function isBookingDeletedV1(event: Event): event is BookingDeletedV1 {
+  return event.eventType === bookingDeletedV1;
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { SubmitDocumentTextCommand } from "../submit-document-text-command/SubmitDocumentTextCommand";
 import { RecordExtractedBookingsCommand } from "./RecordExtractedBookingsCommand";
 import type { IdGenerator } from "../../../providers/ids/IdGenerator";
+import { TravelerResolver } from "../../../providers/travelers/TravelerResolver";
 import { GetBookingCalendarQuery } from "../get-booking-calendar-query/GetBookingCalendarQuery";
 
 class FixedIds implements IdGenerator {
@@ -30,7 +31,11 @@ describe("RecordExtractedBookingsCommand", () => {
     expect(submitted.status).toBe("succeeded");
     if (submitted.status !== "succeeded") throw new Error("submit failed");
 
-    const command = new RecordExtractedBookingsCommand(eventStore, ids);
+    const command = new RecordExtractedBookingsCommand(
+      eventStore,
+      ids,
+      new TravelerResolver({ RW: ["Ralf"], AK: ["Ralfs Frau"] }),
+    );
     const recorded = await command.process({
       documentTextRecordedId: submitted.documentTextRecordedId,
       extractedAt: "2026-04-28T10:01:00.000Z",
@@ -57,9 +62,13 @@ describe("RecordExtractedBookingsCommand", () => {
       bookingExtractedIds: ["booking-2", "booking-1"],
     });
 
-    const calendar = await new GetBookingCalendarQuery(eventStore).process({});
+    const calendar = await new GetBookingCalendarQuery(
+      eventStore,
+      new TravelerResolver({ RW: ["Ralf"], AK: ["Ralfs Frau"] }),
+    ).process({});
 
     expect(calendar.bookings.map((booking) => booking.title)).toEqual(["Earlier booking", "Later booking"]);
     expect(calendar.bookings[0].documentTextRecordedId).toBe("text-1");
+    expect(calendar.bookings[0].travelers).toEqual(["RW", "AK"]);
   });
 });
