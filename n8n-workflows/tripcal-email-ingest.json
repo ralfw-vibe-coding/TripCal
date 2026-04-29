@@ -1,0 +1,130 @@
+{
+  "name": "TripCal - Email Ingest",
+  "nodes": [
+    {
+      "parameters": {
+        "postProcessAction": "nothing",
+        "downloadAttachments": true,
+        "format": "resolved",
+        "options": {}
+      },
+      "id": "EmailTrigger",
+      "name": "Email Trigger",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "credentials": {
+        "imap": {
+          "id": "REPLACE_WITH_IMAP_CREDENTIAL_ID",
+          "name": "tripcal-documents@work-with-ease.eu"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst json = item.json ?? {};\nconst binary = item.binary ?? {};\n\nconst attachments = [];\n\nfor (const [key, meta] of Object.entries(binary)) {\n  const buffer = await this.helpers.getBinaryDataBuffer(0, key);\n  attachments.push({\n    fileName: meta.fileName || meta.fileNameDecoded || key,\n    mimeType: meta.mimeType || 'application/octet-stream',\n    dataBase64: buffer.toString('base64'),\n  });\n}\n\nconst from = typeof json.from === 'object'\n  ? json.from.text || json.from.value?.[0]?.address || undefined\n  : json.from;\n\nreturn [\n  {\n    json: {\n      email: {\n        messageId: json.messageId || json.messageID || json.uid || `${json.date || Date.now()}-${json.subject || 'email'}`,\n        from,\n        subject: json.subject,\n        receivedAt: json.date || json.receivedAt,\n        text: json.textPlain || json.text || json.bodyText || '',\n      },\n      attachments,\n    },\n  },\n];"
+      },
+      "id": "NormalizeEmail",
+      "name": "Normalize Email for TripCal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\n\nreturn [\n  {\n    json: {\n      tripcalUrl: 'https://ralfw-tripcal.netlify.app/api/ingest-email-background',\n      tripcalToken: 'REPLACE_WITH_EMAIL_INGEST_TOKEN',\n      payload: item.json,\n    },\n  },\n];"
+      },
+      "id": "TripCalConfig",
+      "name": "TripCal Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.tripcalUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.tripcalToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "SendToTripCal",
+      "name": "Send to TripCal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Email Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Email for TripCal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Email for TripCal": {
+      "main": [
+        [
+          {
+            "node": "TripCal Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TripCal Config": {
+      "main": [
+        [
+          {
+            "node": "Send to TripCal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "versionId": "tripcal-email-ingest-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
