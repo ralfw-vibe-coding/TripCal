@@ -624,15 +624,14 @@ function TravelerBadges({ travelers }: { travelers: string[] }) {
 
 function GapBar({ previousDate, nextDate }: { previousDate: string; nextDate: string }) {
   const emptyDays = daysBetween(previousDate, nextDate) - 1;
-  if (emptyDays <= 0) return null;
 
   const normalized = Math.min(1, Math.log1p(emptyDays) / Math.log1p(90));
-  const width = 28 + normalized * 280;
-  const height = 2 + normalized * 8;
+  const width = emptyDays > 0 ? 28 + normalized * 280 : 0;
+  const height = emptyDays > 0 ? 2 + normalized * 8 : 0;
 
   return (
     <div className="gapBarRow" aria-hidden="true">
-      <div className="gapBar" style={{ width: `${width}px`, height: `${height}px` }} />
+      {emptyDays > 0 ? <div className="gapBar" style={{ width: `${width}px`, height: `${height}px` }} /> : null}
     </div>
   );
 }

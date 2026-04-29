@@ -253,22 +253,22 @@ h1 {
   display: grid;
   grid-template-columns: 190px 1fr;
   gap: 22px;
-  padding: 22px 0;
-  border-bottom: 1px solid #d7dedb;
+  padding: 22px 0 22px;
 }
 
 .gapBarRow {
   display: flex;
   align-items: center;
-  min-height: 22px;
-  padding: 4px 0 0 212px;
+  min-height: 24px;
+  border-top: 1px solid #d7dedb;
 }
 
 .gapBar {
+  align-self: flex-start;
   max-width: min(308px, calc(100vw - 260px));
   border-radius: 999px;
   background: #c7d0cc;
-  opacity: 0.7;
+  opacity: 0.82;
 }
 
 .dateRail {
@@ -657,10 +657,6 @@ textarea {
   .dayGroup {
     grid-template-columns: 1fr;
     gap: 10px;
-  }
-
-  .gapBarRow {
-    padding-left: 0;
   }
 
   .gapBar {
