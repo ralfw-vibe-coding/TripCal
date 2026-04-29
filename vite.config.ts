@@ -50,7 +50,30 @@ function tripCalApiPlugin() {
         });
         sendJson(response, result.status === "accepted" ? 200 : 400, result);
       });
+
+      server.middlewares.use("/api/submit-document-files", async (request, response) => {
+        if (request.method !== "POST") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+        const body = await readJsonBody(request);
+        const runtime = await getProcessorRuntime();
+        const result = await runtime.processor.submitDocumentFiles({
+          files: Array.isArray(body.files) ? body.files.map(toFileInput) : [],
+        });
+        sendJson(response, result.status === "accepted" ? 200 : 400, result);
+      });
     },
+  };
+}
+
+function toFileInput(value: unknown) {
+  const record = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  return {
+    fileName: String(record.fileName ?? ""),
+    mimeType: String(record.mimeType ?? ""),
+    dataBase64: String(record.dataBase64 ?? ""),
+    dataUrl: String(record.dataUrl ?? ""),
   };
 }
 

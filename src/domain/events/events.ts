@@ -1,6 +1,6 @@
 import type { Event } from "@ricofritzsche/eventstore";
 import type { BookingDateTime, BookingPlace, BookingStatus, BookingType } from "../model";
-import { bookingExtractedFromDocumentTextV1, documentTextRecordedV1 } from "./eventTypes";
+import { bookingExtractedFromDocumentTextV1, documentFileUploadedV1, documentTextRecordedV1 } from "./eventTypes";
 
 export type DocumentTextRecordedV1Payload =
   | {
@@ -20,6 +20,20 @@ export type DocumentTextRecordedV1Payload =
 export type DocumentTextRecordedV1 = Event & {
   eventType: typeof documentTextRecordedV1;
   payload: DocumentTextRecordedV1Payload;
+};
+
+export type DocumentFileUploadedV1Payload = {
+  id: string;
+  originalFileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  storageKey: string;
+  uploadedAt: string;
+};
+
+export type DocumentFileUploadedV1 = Event & {
+  eventType: typeof documentFileUploadedV1;
+  payload: DocumentFileUploadedV1Payload;
 };
 
 export type BookingExtractedFromDocumentTextV1Payload = {
@@ -42,10 +56,14 @@ export type BookingExtractedFromDocumentTextV1 = Event & {
   payload: BookingExtractedFromDocumentTextV1Payload;
 };
 
-export type TripCalEvent = DocumentTextRecordedV1 | BookingExtractedFromDocumentTextV1;
+export type TripCalEvent = DocumentTextRecordedV1 | DocumentFileUploadedV1 | BookingExtractedFromDocumentTextV1;
 
 export function isDocumentTextRecordedV1(event: Event): event is DocumentTextRecordedV1 {
   return event.eventType === documentTextRecordedV1;
+}
+
+export function isDocumentFileUploadedV1(event: Event): event is DocumentFileUploadedV1 {
+  return event.eventType === documentFileUploadedV1;
 }
 
 export function isBookingExtractedFromDocumentTextV1(

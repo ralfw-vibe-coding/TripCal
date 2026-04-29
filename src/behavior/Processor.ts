@@ -9,6 +9,11 @@ import type {
   SubmitDocumentImageResponse,
 } from "./slices/submit-document-image/SubmitDocumentImage";
 import type {
+  SubmitDocumentFiles,
+  SubmitDocumentFilesRequest,
+  SubmitDocumentFilesResponse,
+} from "./slices/submit-document-files/SubmitDocumentFiles";
+import type {
   ViewBookingCalendar,
   ViewBookingCalendarRequest,
   ViewBookingCalendarResponse,
@@ -18,6 +23,7 @@ export class Processor {
   constructor(
     private readonly submitDocumentTextSlice: SubmitDocumentText,
     private readonly submitDocumentImageSlice: SubmitDocumentImage,
+    private readonly submitDocumentFilesSlice: SubmitDocumentFiles,
     private readonly viewBookingCalendarSlice: ViewBookingCalendar,
   ) {}
 
@@ -27,6 +33,10 @@ export class Processor {
 
   submitDocumentImage(request: SubmitDocumentImageRequest): Promise<SubmitDocumentImageResponse> {
     return this.submitDocumentImageSlice.process(request);
+  }
+
+  submitDocumentFiles(request: SubmitDocumentFilesRequest): Promise<SubmitDocumentFilesResponse> {
+    return this.submitDocumentFilesSlice.process(request);
   }
 
   viewBookingCalendar(request: ViewBookingCalendarRequest = {}): Promise<ViewBookingCalendarResponse> {

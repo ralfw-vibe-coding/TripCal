@@ -3,10 +3,16 @@ import type { SubmitDocumentTextCommand } from "../../domain/rpus/submit-documen
 import type { BookingExtractionProvider } from "../../providers/booking-extraction/BookingExtractionProvider";
 import type { Clock } from "../../providers/clock/Clock";
 
-export type RecordDocumentTextAndExtractBookingsRequest = {
-  source: "text" | "image";
-  text: string;
-};
+export type RecordDocumentTextAndExtractBookingsRequest =
+  | {
+      source: "text" | "image";
+      text: string;
+    }
+  | {
+      source: "file";
+      documentFileUploadedId: string;
+      text: string;
+    };
 
 export type RecordDocumentTextAndExtractBookingsResponse =
   | {
@@ -41,11 +47,20 @@ export class RecordDocumentTextAndExtractBookings {
     }
 
     const recordedAt = this.clock.now().toISOString();
-    const submitResponse = await this.submitDocumentTextCommand.process({
-      source: request.source,
-      text,
-      recordedAt,
-    });
+    const submitResponse = await this.submitDocumentTextCommand.process(
+      request.source === "file"
+        ? {
+            source: "file",
+            documentFileUploadedId: request.documentFileUploadedId,
+            text,
+            recordedAt,
+          }
+        : {
+            source: request.source,
+            text,
+            recordedAt,
+          },
+    );
     if (submitResponse.status === "failed") {
       return { status: "rejected", reason: "empty_text", message: "Bitte gib einen Dokumenttext ein." };
     }

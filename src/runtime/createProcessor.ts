@@ -1,17 +1,22 @@
 import { MemoryEventStore, PostgresEventStore } from "@ricofritzsche/eventstore";
 import type { EventStore } from "@ricofritzsche/eventstore";
 import { existsSync, readFileSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import { Processor } from "../behavior/Processor";
 import { RecordDocumentTextAndExtractBookings } from "../behavior/flows/RecordDocumentTextAndExtractBookings";
 import { SubmitDocumentImage } from "../behavior/slices/submit-document-image/SubmitDocumentImage";
+import { SubmitDocumentFiles } from "../behavior/slices/submit-document-files/SubmitDocumentFiles";
 import { SubmitDocumentText } from "../behavior/slices/submit-document-text/SubmitDocumentText";
 import { ViewBookingCalendar } from "../behavior/slices/view-booking-calendar/ViewBookingCalendar";
 import { GetBookingCalendarQuery } from "../domain/rpus/get-booking-calendar-query/GetBookingCalendarQuery";
+import { RecordDocumentFileUploadedCommand } from "../domain/rpus/record-document-file-uploaded-command/RecordDocumentFileUploadedCommand";
 import { RecordExtractedBookingsCommand } from "../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
 import { SubmitDocumentTextCommand } from "../domain/rpus/submit-document-text-command/SubmitDocumentTextCommand";
 import { OpenAIBookingExtractionProvider } from "../providers/booking-extraction/OpenAIBookingExtractionProvider";
 import { RuleBasedBookingExtractionProvider } from "../providers/booking-extraction/RuleBasedBookingExtractionProvider";
 import { SystemClock } from "../providers/clock/SystemClock";
+import { LocalFileStorageProvider } from "../providers/file-storage/LocalFileStorageProvider";
 import { CryptoIdGenerator } from "../providers/ids/CryptoIdGenerator";
 import { OpenAITextExtractionProvider } from "../providers/text-extraction/OpenAITextExtractionProvider";
 import { UnavailableTextExtractionProvider } from "../providers/text-extraction/UnavailableTextExtractionProvider";
@@ -27,8 +32,10 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   const idGenerator = new CryptoIdGenerator();
   const extractionProvider = createBookingExtractionProvider();
   const textExtractionProvider = createTextExtractionProvider();
+  const fileStorageProvider = createFileStorageProvider(idGenerator);
 
   const submitDocumentTextCommand = new SubmitDocumentTextCommand(store, idGenerator);
+  const recordDocumentFileUploadedCommand = new RecordDocumentFileUploadedCommand(store, idGenerator);
   const recordExtractedBookingsCommand = new RecordExtractedBookingsCommand(store, idGenerator);
   const getBookingCalendarQuery = new GetBookingCalendarQuery(store);
 
@@ -40,16 +47,23 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   );
   const submitDocumentText = new SubmitDocumentText(recordDocumentTextAndExtractBookings);
   const submitDocumentImage = new SubmitDocumentImage(textExtractionProvider, recordDocumentTextAndExtractBookings);
+  const submitDocumentFiles = new SubmitDocumentFiles(
+    clock,
+    fileStorageProvider,
+    textExtractionProvider,
+    recordDocumentFileUploadedCommand,
+    recordDocumentTextAndExtractBookings,
+  );
   const viewBookingCalendar = new ViewBookingCalendar(getBookingCalendarQuery);
 
   return {
     eventStore: store,
-    processor: new Processor(submitDocumentText, submitDocumentImage, viewBookingCalendar),
+    processor: new Processor(submitDocumentText, submitDocumentImage, submitDocumentFiles, viewBookingCalendar),
   };
 }
 
 async function createDefaultEventStore(): Promise<EventStore> {
-  const storeType = process.env.TRIPCAL_EVENT_STORE?.trim().toLowerCase() ?? "memory";
+  const storeType = readRuntimeEnv("EVENT_STORE", "TRIPCAL_EVENT_STORE")?.trim().toLowerCase() ?? "memory";
 
   if (storeType === "postgres") {
     const eventStore = new PostgresEventStore({
@@ -63,7 +77,9 @@ async function createDefaultEventStore(): Promise<EventStore> {
     throw new Error(`Unsupported TRIPCAL_EVENT_STORE value: ${storeType}`);
   }
 
-  const filename = process.env.TRIPCAL_MEMORY_EVENT_STORE_FILE ?? "/tmp/tripcal-memory-eventstore.json";
+  const filename =
+    readRuntimeEnv("MEMORY_EVENT_STORE_FILE", "TRIPCAL_MEMORY_EVENT_STORE_FILE") ?? "data/eventstore/events.json";
+  await mkdir(dirname(filename), { recursive: true });
   return MemoryEventStore.createFromFile(filename, true, true);
 }
 
@@ -85,16 +101,31 @@ function createTextExtractionProvider() {
   return new UnavailableTextExtractionProvider();
 }
 
-function readRuntimeEnv(name: string): string | undefined {
-  const fromProcess = process.env[name]?.trim();
+function createFileStorageProvider(idGenerator: CryptoIdGenerator) {
+  return new LocalFileStorageProvider(
+    readRuntimeEnv("LOCAL_FILE_STORAGE_DIR", "TRIPCAL_LOCAL_FILE_STORAGE_DIR") ?? "data/filestore",
+    idGenerator,
+  );
+}
+
+function readRuntimeEnv(name: string, fallbackName?: string): string | undefined {
+  const fromProcess = readProcessEnv(name) ?? (fallbackName ? readProcessEnv(fallbackName) : undefined);
   if (fromProcess) return fromProcess;
 
   if (!existsSync(".env")) return undefined;
 
+  return readDotEnv(name) ?? (fallbackName ? readDotEnv(fallbackName) : undefined);
+}
+
+function readProcessEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value && value.length > 0 ? value : undefined;
+}
+
+function readDotEnv(name: string): string | undefined {
   const line = readFileSync(".env", "utf8")
     .split(/\r?\n/)
     .find((entry) => new RegExp(`^\\s*${escapeRegExp(name)}\\s*=`).test(entry));
-
   const value = line?.replace(new RegExp(`^\\s*${escapeRegExp(name)}\\s*=\\s*`), "").trim();
   return value && value.length > 0 ? unquote(value) : undefined;
 }

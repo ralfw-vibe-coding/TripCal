@@ -1,6 +1,8 @@
 export type ExtractTextRequest = {
-  contentDataUrl: string;
   mimeType: string;
+  contentDataUrl?: string;
+  fileName?: string;
+  dataBase64?: string;
 };
 
 export type ExtractTextResponse = {
@@ -10,4 +12,3 @@ export type ExtractTextResponse = {
 export interface TextExtractionProvider {
   extractText(request: ExtractTextRequest): Promise<ExtractTextResponse>;
 }
-

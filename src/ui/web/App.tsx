@@ -1,22 +1,48 @@
-import { CalendarDays, FileText, Image as ImageIcon, Loader2, Plus, RefreshCw, Send, Trash2, X } from "lucide-react";
-import type { ClipboardEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  CalendarDays,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Send,
+  Upload,
+  X,
+} from "lucide-react";
+import type { ChangeEvent, ClipboardEvent, DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarBooking } from "../../domain/model";
-import { submitDocumentImage, submitDocumentText, viewBookingCalendar } from "./api";
+import { submitDocumentFiles, submitDocumentImage, submitDocumentText, viewBookingCalendar } from "./api";
 
 type PastedImage = {
   dataUrl: string;
   mimeType: string;
 };
 
+type PendingFile = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  dataUrl: string;
+  dataBase64: string;
+};
+
+type SubmitTab = "files" | "text";
+
 export function App() {
   const [bookings, setBookings] = useState<CalendarBooking[]>([]);
   const [text, setText] = useState("");
   const [pastedImage, setPastedImage] = useState<PastedImage | undefined>();
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [submitTab, setSubmitTab] = useState<SubmitTab>("files");
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(true);
   const [showSubmit, setShowSubmit] = useState(false);
   const [message, setMessage] = useState<string | undefined>();
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function loadCalendar() {
     setIsLoadingCalendar(true);
@@ -32,13 +58,23 @@ export function App() {
     void loadCalendar();
   }, []);
 
+  useEffect(() => {
+    if (showSubmit && submitTab === "text" && !pastedImage) {
+      window.setTimeout(() => textAreaRef.current?.focus(), 0);
+    }
+  }, [showSubmit, pastedImage, submitTab]);
+
   async function handleSubmit() {
     setIsSubmitting(true);
     setMessage(undefined);
     try {
-      const response = pastedImage
-        ? await submitDocumentImage(pastedImage.dataUrl, pastedImage.mimeType)
-        : await submitDocumentText(text);
+      const response =
+        pendingFiles.length > 0
+          ? await submitDocumentFiles(pendingFiles)
+          : pastedImage
+            ? await submitDocumentImage(pastedImage.dataUrl, pastedImage.mimeType)
+            : await submitDocumentText(text);
+
       if (response.status === "accepted") {
         setMessage(`${response.bookingExtractedIds.length} Buchung(en) extrahiert.`);
         setShowSubmit(false);
@@ -68,7 +104,7 @@ export function App() {
           </button>
           <button className="primaryButton" type="button" onClick={openSubmitDialog}>
             <Plus size={18} />
-            Dokumenttext
+            Dokument
           </button>
         </div>
       </header>
@@ -125,33 +161,94 @@ export function App() {
             <header className="dialogHeader">
               <div>
                 <div className="eyebrow">Dokument einreichen</div>
-                <h2>{pastedImage ? "Bild aus Zwischenablage" : "Text erfassen"}</h2>
+                <h2>{dialogTitle()}</h2>
               </div>
               <button className="iconButton" type="button" onClick={() => setShowSubmit(false)} title="Schließen">
                 <X size={18} />
               </button>
             </header>
-            {pastedImage ? (
+
+            <div className="tabs" role="tablist" aria-label="Eingabeart">
+              <button
+                className={submitTab === "files" ? "tabButton active" : "tabButton"}
+                type="button"
+                onClick={() => switchTab("files")}
+              >
+                Dateien
+              </button>
+              <button
+                className={submitTab === "text" ? "tabButton active" : "tabButton"}
+                type="button"
+                onClick={() => switchTab("text")}
+              >
+                Text / Clipboard
+              </button>
+            </div>
+
+            {submitTab === "files" ? (
+              <div className="fileUploadPanel">
+                <button
+                  className={isDraggingFiles ? "dropZone dragging" : "dropZone"}
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragEnter={handleFileDragEnter}
+                  onDragOver={handleFileDragOver}
+                  onDragLeave={handleFileDragLeave}
+                  onDrop={handleFileDrop}
+                >
+                  <Upload size={30} />
+                  <span>Ziehe Dokumente hierher oder klicke hier, um sie auszuwählen.</span>
+                </button>
+                <input ref={fileInputRef} type="file" multiple hidden onChange={handleFileInputChange} />
+                {pendingFiles.length > 0 ? (
+                  <div className="fileList">
+                    {pendingFiles.map((file) => (
+                      <div className="fileItem" key={file.id}>
+                        <div>
+                          <div className="fileName">{file.fileName}</div>
+                          <div className="fileMeta">
+                            {file.mimeType || "unbekannter Typ"} · {formatBytes(file.sizeBytes)}
+                          </div>
+                        </div>
+                        <button
+                          className="fileRemoveButton"
+                          type="button"
+                          onClick={() => removePendingFile(file.id)}
+                          title="Datei entfernen"
+                        >
+                          <X size={17} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : pastedImage ? (
               <div className="imagePreviewPanel">
-                <img className="imagePreview" src={pastedImage.dataUrl} alt="Eingefügtes Dokument" />
-                <button className="secondaryButton" type="button" onClick={clearPastedImage}>
-                  <Trash2 size={17} />
-                  Bild löschen
+                <div className="imagePreviewFrame">
+                  <img className="imagePreview" src={pastedImage.dataUrl} alt="Eingefügtes Dokument" />
+                </div>
+                <button className="imageRemoveButton" type="button" onClick={clearPastedImage} title="Bild entfernen">
+                  <X size={18} />
                 </button>
               </div>
             ) : (
               <textarea
+                ref={textAreaRef}
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 placeholder="Dokumenttext eingeben oder Text/Bild aus der Zwischenablage einfügen"
               />
             )}
+
             <footer className="dialogFooter">
               <div className="hint">
-                {pastedImage ? <ImageIcon size={16} /> : <FileText size={16} />}
+                {hintIcon()}
                 {pastedImage
                   ? "Das Bild wird nur zur Texterkennung verwendet und nicht gespeichert."
-                  : "Text direkt erfassen oder ein Bild aus der Zwischenablage einfügen."}
+                  : submitTab === "files"
+                    ? "Dateien werden lokal gespeichert; PDF- und Bilddateien können per KI ausgelesen werden."
+                    : "Text direkt erfassen, einfügen oder mehrere Buchungen mit --- trennen."}
               </div>
               <button className="primaryButton" type="button" onClick={handleSubmit} disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
@@ -167,27 +264,99 @@ export function App() {
   function openSubmitDialog() {
     setText("");
     setPastedImage(undefined);
+    setPendingFiles([]);
+    setSubmitTab("files");
+    setIsDraggingFiles(false);
     setMessage(undefined);
     setShowSubmit(true);
   }
 
   async function handleDialogPaste(event: ClipboardEvent<HTMLElement>) {
     const imageItem = [...event.clipboardData.items].find((item) => item.type.startsWith("image/"));
-    if (!imageItem) return;
+    if (!imageItem) {
+      const pastedText = event.clipboardData.getData("text/plain");
+      if (pastedText.trim().length > 0) {
+        setSubmitTab("text");
+        setPendingFiles([]);
+      }
+      return;
+    }
 
     const file = imageItem.getAsFile();
     if (!file) return;
 
     event.preventDefault();
     const dataUrl = await readFileAsDataUrl(file);
+    setSubmitTab("text");
     setPastedImage({ dataUrl, mimeType: file.type });
     setText("");
+    setPendingFiles([]);
     setMessage(undefined);
   }
 
   function clearPastedImage() {
     setPastedImage(undefined);
     setMessage(undefined);
+  }
+
+  function switchTab(tab: SubmitTab) {
+    setSubmitTab(tab);
+    setMessage(undefined);
+    if (tab === "files") {
+      setText("");
+      setPastedImage(undefined);
+    } else {
+      setPendingFiles([]);
+    }
+  }
+
+  function dialogTitle() {
+    if (submitTab === "files") return "Dokumente hochladen";
+    return pastedImage ? "Bild aus Zwischenablage" : "Text erfassen";
+  }
+
+  function hintIcon() {
+    if (pastedImage) return <ImageIcon size={16} />;
+    return submitTab === "files" ? <Upload size={16} /> : <FileText size={16} />;
+  }
+
+  function handleFileDragEnter(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setIsDraggingFiles(true);
+  }
+
+  function handleFileDragOver(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+  }
+
+  function handleFileDragLeave(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setIsDraggingFiles(false);
+  }
+
+  async function handleFileDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setIsDraggingFiles(false);
+    await addFiles([...event.dataTransfer.files]);
+  }
+
+  async function handleFileInputChange(event: ChangeEvent<HTMLInputElement>) {
+    await addFiles([...(event.target.files ?? [])]);
+    event.target.value = "";
+  }
+
+  async function addFiles(files: File[]) {
+    if (files.length === 0) return;
+    const inputs = await Promise.all(files.map(toPendingFile));
+    setPendingFiles((current) => [...current, ...inputs]);
+    setText("");
+    setPastedImage(undefined);
+    setSubmitTab("files");
+    setMessage(undefined);
+  }
+
+  function removePendingFile(id: string) {
+    setPendingFiles((current) => current.filter((file) => file.id !== id));
   }
 }
 
@@ -198,6 +367,24 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+async function toPendingFile(file: File): Promise<PendingFile> {
+  const dataUrl = await readFileAsDataUrl(file);
+  return {
+    id: crypto.randomUUID(),
+    fileName: file.name,
+    mimeType: file.type || "application/octet-stream",
+    sizeBytes: file.size,
+    dataUrl,
+    dataBase64: dataUrl.split(",", 2)[1] ?? "",
+  };
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 type BookingGroup = {

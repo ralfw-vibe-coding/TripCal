@@ -3,4 +3,5 @@ dist/
 coverage/
 .env
 .netlify/
-
+data/eventstore/
+data/filestore/

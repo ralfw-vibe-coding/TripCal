@@ -3,11 +3,18 @@ import type { IdGenerator } from "../../../providers/ids/IdGenerator";
 import type { DocumentTextRecordedV1 } from "../../events/events";
 import { documentTextRecordedV1 } from "../../events/eventTypes";
 
-export type SubmitDocumentTextCommandRequest = {
-  source: "text" | "image";
-  text: string;
-  recordedAt: string;
-};
+export type SubmitDocumentTextCommandRequest =
+  | {
+      source: "text" | "image";
+      text: string;
+      recordedAt: string;
+    }
+  | {
+      source: "file";
+      documentFileUploadedId: string;
+      text: string;
+      recordedAt: string;
+    };
 
 export type SubmitDocumentTextCommandResponse =
   | {
@@ -33,12 +40,21 @@ export class SubmitDocumentTextCommand {
 
     const event: DocumentTextRecordedV1 = {
       eventType: documentTextRecordedV1,
-      payload: {
-        id: this.idGenerator.newId(),
-        source: request.source,
-        text,
-        recordedAt: request.recordedAt,
-      },
+      payload:
+        request.source === "file"
+          ? {
+              id: this.idGenerator.newId(),
+              source: "file",
+              documentFileUploadedId: request.documentFileUploadedId,
+              text,
+              recordedAt: request.recordedAt,
+            }
+          : {
+              id: this.idGenerator.newId(),
+              source: request.source,
+              text,
+              recordedAt: request.recordedAt,
+            },
     };
 
     await this.eventStore.append([event]);

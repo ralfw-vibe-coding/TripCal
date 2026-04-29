@@ -70,7 +70,6 @@ h1 {
 }
 
 .primaryButton,
-.secondaryButton,
 .iconButton {
   border: 1px solid #18201f;
   border-radius: 8px;
@@ -84,18 +83,6 @@ h1 {
   background: #18201f;
   color: #ffffff;
   font-weight: 700;
-}
-
-.secondaryButton {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 14px;
-  background: #ffffff;
-  color: #18201f;
-  font-weight: 700;
-  cursor: pointer;
 }
 
 .primaryButton:disabled {
@@ -222,7 +209,7 @@ h1 {
   width: min(760px, 100%);
   max-height: min(760px, calc(100vh - 40px));
   display: grid;
-  grid-template-rows: auto minmax(260px, 1fr) auto;
+  grid-template-rows: auto auto minmax(260px, 1fr) auto;
   background: #ffffff;
   border-radius: 8px;
   border: 1px solid #d7dedb;
@@ -239,7 +226,6 @@ h1 {
 
 .dialogHeader {
   align-items: flex-start;
-  border-bottom: 1px solid #e2e8e5;
 }
 
 .dialogFooter {
@@ -256,12 +242,109 @@ textarea {
   line-height: 1.5;
 }
 
-.imagePreviewPanel {
+.tabs {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 14px;
+  border-bottom: 1px solid #e2e8e5;
+}
+
+.tabButton {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d7dedb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #40504d;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.tabButton.active {
+  border-color: #18201f;
+  background: #18201f;
+  color: #ffffff;
+}
+
+.fileUploadPanel {
   min-height: 300px;
+  padding: 16px;
   display: grid;
   align-content: start;
   gap: 14px;
+}
+
+.dropZone {
+  min-height: 190px;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  padding: 26px;
+  border: 1px dashed #78908a;
+  border-radius: 8px;
+  background: #f7f7f4;
+  color: #40504d;
+  cursor: pointer;
+  text-align: center;
+  font-weight: 800;
+}
+
+.dropZone.dragging {
+  border-color: #18201f;
+  background: #edf3f1;
+}
+
+.fileList {
+  display: grid;
+  gap: 8px;
+}
+
+.fileItem {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #d7dedb;
+  border-radius: 8px;
+}
+
+.fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+}
+
+.fileMeta {
+  color: #5b6f6a;
+  font-size: 0.86rem;
+  margin-top: 2px;
+}
+
+.fileRemoveButton {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d7dedb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #18201f;
+  cursor: pointer;
+}
+
+.imagePreviewPanel {
+  position: relative;
+  min-height: 300px;
   padding: 16px;
+}
+
+.imagePreviewFrame {
+  position: relative;
 }
 
 .imagePreview {
@@ -271,6 +354,22 @@ textarea {
   border: 1px solid #d7dedb;
   border-radius: 8px;
   background: #f7f7f4;
+}
+
+.imageRemoveButton {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d7dedb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #18201f;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(24, 32, 31, 0.14);
 }
 
 .hint {
