@@ -57,6 +57,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
 
   const recordDocumentTextAndExtractBookings = new RecordDocumentTextAndExtractBookings(
     clock,
+    activityLogProvider,
     submitDocumentTextCommand,
     extractionProvider,
     recordExtractedBookingsCommand,

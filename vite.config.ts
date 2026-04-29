@@ -199,7 +199,7 @@ async function readJsonBody(request: import("node:http").IncomingMessage): Promi
 function sendJson(response: import("node:http").ServerResponse, statusCode: number, body: unknown): void {
   response.statusCode = statusCode;
   response.setHeader("content-type", "application/json");
-  response.end(JSON.stringify(body));
+  response.end(JSON.stringify(body, null, 2));
 }
 
 function contentDispositionInline(fileName: string): string {

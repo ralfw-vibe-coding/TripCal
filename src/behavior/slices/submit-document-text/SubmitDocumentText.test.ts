@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { RecordDocumentTextAndExtractBookings } from "../../flows/RecordDocumentTextAndExtractBookings";
 import { RecordExtractedBookingsCommand } from "../../../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
 import { SubmitDocumentTextCommand } from "../../../domain/rpus/submit-document-text-command/SubmitDocumentTextCommand";
+import type { ActivityLogProvider } from "../../../providers/activity-log/ActivityLogProvider";
 import type { BookingExtractionProvider } from "../../../providers/booking-extraction/BookingExtractionProvider";
 import type { Clock } from "../../../providers/clock/Clock";
 import type { IdGenerator } from "../../../providers/ids/IdGenerator";
@@ -42,6 +43,13 @@ const extractionProvider: BookingExtractionProvider = {
   },
 };
 
+const activityLogProvider: ActivityLogProvider = {
+  async append() {},
+  async listLatest() {
+    return [];
+  },
+};
+
 describe("SubmitDocumentText", () => {
   it("records document text and extracted bookings", async () => {
     const eventStore = new MemoryEventStore();
@@ -49,6 +57,7 @@ describe("SubmitDocumentText", () => {
     const slice = new SubmitDocumentText(
       new RecordDocumentTextAndExtractBookings(
         new FixedClock(),
+        activityLogProvider,
         new SubmitDocumentTextCommand(eventStore, ids),
         extractionProvider,
         new RecordExtractedBookingsCommand(eventStore, ids, new TravelerResolver({ RW: ["Ralf"], AK: ["Ralfs Frau"] })),

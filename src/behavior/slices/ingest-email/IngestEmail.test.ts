@@ -78,6 +78,7 @@ describe("IngestEmail", () => {
     const clock = new FixedClock();
     const sharedFlow = new RecordDocumentTextAndExtractBookings(
       clock,
+      activityLogProvider,
       new SubmitDocumentTextCommand(eventStore, ids),
       bookingExtractionProvider,
       new RecordExtractedBookingsCommand(eventStore, ids, new TravelerResolver({ RW: ["Ralf"] })),

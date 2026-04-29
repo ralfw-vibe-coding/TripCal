@@ -6,6 +6,7 @@ import { RecordDocumentTextAndExtractBookings } from "../../flows/RecordDocument
 import { RecordDocumentFileUploadedCommand } from "../../../domain/rpus/record-document-file-uploaded-command/RecordDocumentFileUploadedCommand";
 import { RecordExtractedBookingsCommand } from "../../../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
 import { SubmitDocumentTextCommand } from "../../../domain/rpus/submit-document-text-command/SubmitDocumentTextCommand";
+import type { ActivityLogProvider } from "../../../providers/activity-log/ActivityLogProvider";
 import type { BookingExtractionProvider } from "../../../providers/booking-extraction/BookingExtractionProvider";
 import type { Clock } from "../../../providers/clock/Clock";
 import { LocalFileStorageProvider } from "../../../providers/file-storage/LocalFileStorageProvider";
@@ -53,6 +54,13 @@ const bookingExtractionProvider: BookingExtractionProvider = {
   },
 };
 
+const activityLogProvider: ActivityLogProvider = {
+  async append() {},
+  async listLatest() {
+    return [];
+  },
+};
+
 describe("SubmitDocumentFiles", () => {
   it("stores files, records upload events, and extracts bookings", async () => {
     const eventStore = new MemoryEventStore();
@@ -61,6 +69,7 @@ describe("SubmitDocumentFiles", () => {
     const clock = new FixedClock();
     const sharedFlow = new RecordDocumentTextAndExtractBookings(
       clock,
+      activityLogProvider,
       new SubmitDocumentTextCommand(eventStore, ids),
       bookingExtractionProvider,
       new RecordExtractedBookingsCommand(eventStore, ids, new TravelerResolver({ RW: ["Ralf"], AK: ["Ralfs Frau"] })),
