@@ -224,6 +224,7 @@ export function App() {
                             Originaldokument öffnen: {booking.sourceDocument.originalFileName}
                           </a>
                         ) : null}
+                        <div className="processedAt">Verarbeitet: {formatProcessedAt(booking.processedAt)}</div>
                       </div>
                     ) : null}
                   </article>
@@ -715,6 +716,15 @@ function formatEndTime(booking: CalendarBooking): string {
   if (!booking.end) return "";
   const sameDay = booking.start.value.slice(0, 10) === booking.end.value.slice(0, 10);
   return sameDay ? formatTime(booking.end.value) : formatDateTime(booking.end.value);
+}
+
+function formatProcessedAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function formatTime(value: string): string {

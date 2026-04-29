@@ -314,6 +314,12 @@ h1 {
   text-decoration: underline;
 }
 
+.processedAt {
+  margin-top: 12px;
+  color: #7a8985;
+  font-size: 0.78rem;
+}
+
 .dialogBackdrop {
   position: fixed;
   inset: 0;

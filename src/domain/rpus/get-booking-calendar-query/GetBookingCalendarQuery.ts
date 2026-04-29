@@ -88,6 +88,7 @@ function toCalendarBooking(
     travelers: resolvedTravelers.travelers.length > 0 ? resolvedTravelers.travelers : payload.travelers,
     rawTravelers: payload.rawTravelers ?? payload.travelers,
     details: payload.details,
+    processedAt: payload.extractedAt,
   };
 }
 

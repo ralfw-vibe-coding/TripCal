@@ -38,7 +38,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first();\n\nreturn [\n  {\n    json: {\n      tripcalUrl: 'https://ralfw-tripcal.netlify.app/api/ingest-email-background',\n      tripcalToken: 'REPLACE_WITH_EMAIL_INGEST_TOKEN',\n      payload: item.json,\n    },\n  },\n];"
+        "jsCode": "return $input.all().map((item) => ({\n  json: {\n    tripcalUrl: 'https://ralfw-tripcal.netlify.app/api/ingest-email-background',\n    tripcalToken: 'REPLACE_WITH_EMAIL_INGEST_TOKEN',\n    payload: item.json,\n  },\n}));"
       },
       "id": "TripCalConfig",
       "name": "TripCal Config",

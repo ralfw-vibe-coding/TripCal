@@ -56,4 +56,5 @@ export type CalendarBooking = {
   travelers: string[];
   rawTravelers?: string[];
   details: string;
+  processedAt: string;
 };
