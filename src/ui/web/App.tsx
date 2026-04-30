@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { ChangeEvent, ClipboardEvent, DragEvent } from "react";
+import type { CSSProperties, ChangeEvent, ClipboardEvent, DragEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarBooking, Trip } from "../../domain/model";
 import type { ActivityLogEntry } from "../../providers/activity-log/ActivityLogProvider";
@@ -65,6 +65,7 @@ export function App() {
 
   const [bookings, setBookings] = useState<CalendarBooking[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [travelerLabels, setTravelerLabels] = useState<string[]>([]);
   const [text, setText] = useState("");
   const [pastedImage, setPastedImage] = useState<PastedImage | undefined>();
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
@@ -78,7 +79,7 @@ export function App() {
   const [tripForm, setTripForm] = useState({
     shortCode: "",
     title: "",
-    owner: "RW",
+    owner: "",
     startDate: "",
     endDate: "",
   });
@@ -94,6 +95,7 @@ export function App() {
       const [calendarResponse, tripsResponse] = await Promise.all([viewBookingCalendar(), viewTrips()]);
       setBookings(calendarResponse.bookings);
       setTrips(tripsResponse.trips);
+      setTravelerLabels(tripsResponse.travelerLabels);
     } finally {
       setIsLoadingCalendar(false);
     }
@@ -156,7 +158,7 @@ export function App() {
   }
 
   function openTripDialog() {
-    setTripForm({ shortCode: "", title: "", owner: "RW", startDate: "", endDate: "" });
+    setTripForm({ shortCode: "", title: "", owner: travelerLabels[0] ?? "", startDate: "", endDate: "" });
     setShowTripDialog(true);
   }
 
@@ -193,6 +195,8 @@ export function App() {
   }
 
   const groupedBookings = useMemo(() => groupBookingsByDate(bookings), [bookings]);
+  const tripLaneSpans = useMemo(() => buildTripLaneSpans(bookings, trips), [bookings, trips]);
+  const calendarGridStyle = { "--trip-lane-count": String(Math.min(2, Math.max(1, tripLaneSpans.length))) } as CSSProperties;
 
   return (
     <main className="appShell" onClick={clearPendingDelete}>
@@ -229,7 +233,10 @@ export function App() {
               trips.map((trip) => (
                 <div className="tripListItem" key={trip.tripCreatedId} style={{ borderLeftColor: trip.color }}>
                   <div className="tripListTop">
-                    <strong>{trip.shortCode}</strong>
+                    <span className="tripListTitle">
+                      <strong>{trip.shortCode}</strong>
+                      <span className="tripListNumber">#{trip.tripNumber}</span>
+                    </span>
                     <span className="travelerBadge tripOwnerBadge" title={trip.owner} style={travelerBadgeStyle(trip.owner)}>
                       {trip.owner}
                     </span>
@@ -257,14 +264,26 @@ export function App() {
         ) : (
           groupedBookings.map((group, index) => (
             <div className="calendarDayWithGap" key={group.date}>
-              {index > 0 ? <GapBar previousDate={groupedBookings[index - 1].date} nextDate={group.date} /> : null}
-              <section className="dayGroup">
+              {index > 0 ? (
+                <GapBar
+                  previousDate={groupedBookings[index - 1].date}
+                  nextDate={group.date}
+                  spans={tripLaneSpans}
+                  style={calendarGridStyle}
+                />
+              ) : null}
+              <section className="dayGroup" style={calendarGridStyle}>
                 <div className="dateRail">
                   <span>{formatDate(group.date)}</span>
                 </div>
+                <TripLaneColumn date={group.date} spans={tripLaneSpans} />
                 <div className="bookingList">
                   {group.bookings.map((booking) => (
-                  <article className="bookingCard compact" key={booking.bookingExtractedId}>
+                  <article
+                    className={booking.trip ? "bookingCard compact hasTrip" : "bookingCard compact"}
+                    key={booking.bookingExtractedId}
+                    style={booking.trip ? { borderLeftColor: booking.trip.color } : undefined}
+                  >
                     <div className="bookingCompactRow">
                       <BookingTypeIcon type={booking.type} />
                       <div className="bookingCompactMain">
@@ -474,32 +493,38 @@ export function App() {
             </header>
             <div className="tripForm">
               <label>
-                <span>Kürzel</span>
+                <span>Kürzel *</span>
                 <input
                   value={tripForm.shortCode}
                   onChange={(event) => setTripForm((form) => ({ ...form, shortCode: event.target.value }))}
-                  placeholder="VN26"
+                  placeholder="Kürzel"
                 />
               </label>
               <label>
-                <span>Titel optional</span>
+                <span>Titel</span>
                 <input
                   value={tripForm.title}
                   onChange={(event) => setTripForm((form) => ({ ...form, title: event.target.value }))}
-                  placeholder="Vietnam 2026"
+                  placeholder="Titel"
                 />
               </label>
               <label>
-                <span>Owner</span>
-                <input
+                <span>Owner *</span>
+                <select
                   value={tripForm.owner}
                   onChange={(event) => setTripForm((form) => ({ ...form, owner: event.target.value }))}
-                  placeholder="RW"
-                />
+                >
+                  {travelerLabels.length === 0 ? <option value="">Keine Traveller konfiguriert</option> : null}
+                  {travelerLabels.map((label) => (
+                    <option value={label} key={label}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <div className="tripDateRow">
                 <label>
-                  <span>Von</span>
+                  <span>Von *</span>
                   <input
                     type="date"
                     value={tripForm.startDate}
@@ -507,7 +532,7 @@ export function App() {
                   />
                 </label>
                 <label>
-                  <span>Bis</span>
+                  <span>Bis *</span>
                   <input
                     type="date"
                     value={tripForm.endDate}
@@ -793,7 +818,45 @@ function TripChip({ trip }: { trip: NonNullable<CalendarBooking["trip"]> }) {
   );
 }
 
-function GapBar({ previousDate, nextDate }: { previousDate: string; nextDate: string }) {
+function TripLaneColumn({
+  date,
+  spans,
+  gapStartDate,
+  gapEndDate,
+}: {
+  date?: string;
+  spans: TripLaneSpan[];
+  gapStartDate?: string;
+  gapEndDate?: string;
+}) {
+  return (
+    <div className="tripLaneColumn" aria-hidden="true">
+      {spans.map((span) => {
+        const isActive =
+          date !== undefined ? isTripLaneActiveOnDate(span, date) : isTripLaneActiveAcrossGap(span, gapStartDate, gapEndDate);
+        return (
+          <div className="tripLaneSlot" key={span.tripCreatedId}>
+            {isActive ? (
+              <div className="tripLaneLine" style={{ backgroundColor: span.color }} title={span.shortCode} />
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function GapBar({
+  previousDate,
+  nextDate,
+  spans,
+  style,
+}: {
+  previousDate: string;
+  nextDate: string;
+  spans: TripLaneSpan[];
+  style: CSSProperties;
+}) {
   const emptyDays = daysBetween(previousDate, nextDate) - 1;
 
   const normalized = Math.min(1, Math.log1p(emptyDays) / Math.log1p(90));
@@ -801,8 +864,12 @@ function GapBar({ previousDate, nextDate }: { previousDate: string; nextDate: st
   const height = emptyDays > 0 ? 2 + normalized * 8 : 0;
 
   return (
-    <div className="gapBarRow" aria-hidden="true">
-      {emptyDays > 0 ? <div className="gapBar" style={{ width: `${width}px`, height: `${height}px` }} /> : null}
+    <div className="gapBarRow" style={style} aria-hidden="true">
+      <div />
+      <TripLaneColumn spans={spans} gapStartDate={previousDate} gapEndDate={nextDate} />
+      <div className="gapBarTrack">
+        {emptyDays > 0 ? <div className="gapBar" style={{ width: `${width}px`, height: `${height}px` }} /> : null}
+      </div>
     </div>
   );
 }
@@ -911,6 +978,14 @@ type BookingGroup = {
   bookings: CalendarBooking[];
 };
 
+type TripLaneSpan = {
+  tripCreatedId: string;
+  shortCode: string;
+  color: string;
+  startDate: string;
+  endDate: string;
+};
+
 function groupBookingsByDate(bookings: CalendarBooking[]): BookingGroup[] {
   const groups = new Map<string, CalendarBooking[]>();
   for (const booking of [...bookings].sort(compareCalendarBookings)) {
@@ -918,6 +993,54 @@ function groupBookingsByDate(bookings: CalendarBooking[]): BookingGroup[] {
     groups.set(date, [...(groups.get(date) ?? []), booking]);
   }
   return [...groups.entries()].map(([date, groupBookings]) => ({ date, bookings: groupBookings }));
+}
+
+function buildTripLaneSpans(bookings: CalendarBooking[], trips: Trip[]): TripLaneSpan[] {
+  const spans = new Map<string, TripLaneSpan>();
+
+  for (const booking of bookings) {
+    if (!booking.trip) continue;
+    const startDate = booking.start.value.slice(0, 10);
+    const endDate = booking.end?.value.slice(0, 10) ?? startDate;
+    const existing = spans.get(booking.trip.tripCreatedId);
+    if (!existing) {
+      spans.set(booking.trip.tripCreatedId, {
+        tripCreatedId: booking.trip.tripCreatedId,
+        shortCode: booking.trip.shortCode,
+        color: booking.trip.color,
+        startDate,
+        endDate,
+      });
+      continue;
+    }
+
+    existing.startDate = minDate(existing.startDate, startDate);
+    existing.endDate = maxDate(existing.endDate, endDate);
+  }
+
+  const tripOrder = new Map(trips.map((trip, index) => [trip.tripCreatedId, index]));
+  return [...spans.values()].sort((a, b) => {
+    const orderA = tripOrder.get(a.tripCreatedId) ?? Number.MAX_SAFE_INTEGER;
+    const orderB = tripOrder.get(b.tripCreatedId) ?? Number.MAX_SAFE_INTEGER;
+    return orderA - orderB || a.startDate.localeCompare(b.startDate) || a.shortCode.localeCompare(b.shortCode);
+  });
+}
+
+function isTripLaneActiveOnDate(span: TripLaneSpan, date: string): boolean {
+  return span.startDate <= date && date <= span.endDate;
+}
+
+function isTripLaneActiveAcrossGap(span: TripLaneSpan, startDate?: string, endDate?: string): boolean {
+  if (!startDate || !endDate) return false;
+  return span.startDate <= startDate && endDate <= span.endDate;
+}
+
+function minDate(first: string, second: string): string {
+  return first <= second ? first : second;
+}
+
+function maxDate(first: string, second: string): string {
+  return first >= second ? first : second;
 }
 
 function daysBetween(first: string, second: string): number {

@@ -190,6 +190,19 @@ h1 {
   font-size: 0.86rem;
 }
 
+.tripListTitle {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.tripListNumber {
+  color: #71817d;
+  font-size: 0.68rem;
+  font-weight: 400;
+}
+
 .tripListDates {
   margin-top: 3px;
   color: #71817d;
@@ -325,16 +338,22 @@ h1 {
 
 .dayGroup {
   display: grid;
-  grid-template-columns: 150px 1fr;
+  grid-template-columns: 150px minmax(22px, calc(var(--trip-lane-count, 1) * 10px + 12px)) 1fr;
   gap: 18px;
-  padding: 22px 0 22px;
+  padding: 0;
 }
 
 .gapBarRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: 150px minmax(22px, calc(var(--trip-lane-count, 1) * 10px + 12px)) 1fr;
+  gap: 18px;
   align-items: center;
   min-height: 24px;
-  border-top: 1px solid #d7dedb;
+}
+
+.gapBarTrack {
+  display: flex;
+  align-items: flex-start;
 }
 
 .gapBar {
@@ -346,13 +365,36 @@ h1 {
 }
 
 .dateRail {
+  padding: 22px 0;
   color: #40504d;
   font-weight: 800;
+}
+
+.tripLaneColumn {
+  align-self: stretch;
+  display: grid;
+  grid-template-columns: repeat(var(--trip-lane-count, 1), 6px);
+  gap: 4px;
+  justify-content: start;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+.tripLaneSlot {
+  min-height: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.tripLaneLine {
+  width: 4px;
+  min-height: 100%;
 }
 
 .bookingList {
   display: grid;
   gap: 8px;
+  padding: 22px 0;
 }
 
 .bookingCard {
@@ -360,6 +402,10 @@ h1 {
   border: 1px solid #d7dedb;
   border-radius: 8px;
   padding: 16px;
+}
+
+.bookingCard.hasTrip {
+  border-left-width: 4px;
 }
 
 .bookingCard.compact {
@@ -605,11 +651,13 @@ h1 {
   font-weight: 800;
 }
 
-.tripForm input {
+.tripForm input,
+.tripForm select {
   min-height: 40px;
   border: 1px solid #cfd8d5;
   border-radius: 8px;
   padding: 0 10px;
+  background: #ffffff;
   color: #18201f;
 }
 
@@ -827,6 +875,28 @@ textarea {
   .dayGroup {
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+
+  .dateRail {
+    padding: 22px 0 0;
+  }
+
+  .bookingList {
+    padding: 0 0 22px;
+  }
+
+  .dayGroup > .tripLaneColumn {
+    display: none;
+  }
+
+  .gapBarRow {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .gapBarRow > :first-child,
+  .gapBarRow > .tripLaneColumn {
+    display: none;
   }
 
   .gapBar {

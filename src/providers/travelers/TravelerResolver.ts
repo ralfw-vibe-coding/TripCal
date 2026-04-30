@@ -12,6 +12,10 @@ export class TravelerResolver {
     this.aliasToLabel = buildAliasMap(aliases);
   }
 
+  labels(): string[] {
+    return [...new Set(this.aliasToLabel.values())].sort();
+  }
+
   resolve(rawTravelers: string[]): ResolvedTravelers {
     const labels = new Set<string>();
     const raw = rawTravelers.map((traveler) => traveler.trim()).filter(Boolean);

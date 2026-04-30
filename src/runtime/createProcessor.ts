@@ -93,7 +93,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
     recordDocumentTextAndExtractBookings,
   );
   const viewBookingCalendar = new ViewBookingCalendar(getBookingCalendarQuery);
-  const viewTrips = new ViewTrips(getTripsQuery);
+  const viewTrips = new ViewTrips(getTripsQuery, travelerResolver);
 
   return {
     eventStore: store,
