@@ -1,5 +1,6 @@
 import {
   Activity,
+  ArrowRight,
   CalendarDays,
   Bus,
   Car,
@@ -8,7 +9,9 @@ import {
   FileText,
   FerrisWheel,
   Image as ImageIcon,
+  Info,
   Loader2,
+  Pencil,
   Plane,
   Plus,
   RefreshCw,
@@ -24,10 +27,19 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties, ChangeEvent, ClipboardEvent, DragEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CalendarBooking, Trip } from "../../domain/model";
+import type {
+  BookingCorrectionPatch,
+  BookingDateTime,
+  BookingPlace,
+  BookingStatus,
+  BookingType,
+  CalendarBooking,
+  Trip,
+} from "../../domain/model";
 import type { ActivityLogEntry } from "../../providers/activity-log/ActivityLogProvider";
 import {
   assignBookingToTrip,
+  correctBooking,
   createTrip,
   deleteBooking,
   submitDocumentFiles,
@@ -58,6 +70,22 @@ type ActivityLogTableRow =
   | { type: "entry"; entry: ActivityLogEntry }
   | { type: "separator"; id: string; gapMs: number };
 
+type BookingEditForm = {
+  title: string;
+  type: BookingType;
+  serviceIdentifier: string;
+  operator: string;
+  status: BookingStatus;
+  startValue: string;
+  startTimezone: string;
+  endValue: string;
+  endTimezone: string;
+  fromText: string;
+  toText: string;
+  travelers: string[];
+  details: string;
+};
+
 export function App() {
   if (window.location.pathname === "/log") {
     return <ActivityLogPage />;
@@ -76,6 +104,9 @@ export function App() {
   const [showSubmit, setShowSubmit] = useState(false);
   const [showTripDialog, setShowTripDialog] = useState(false);
   const [isCreatingTrip, setIsCreatingTrip] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<CalendarBooking | undefined>();
+  const [bookingEditForm, setBookingEditForm] = useState<BookingEditForm | undefined>();
+  const [isCorrectingBooking, setIsCorrectingBooking] = useState(false);
   const [tripForm, setTripForm] = useState({
     shortCode: "",
     title: "",
@@ -194,8 +225,37 @@ export function App() {
     await loadCalendar();
   }
 
+  function openBookingEditor(booking: CalendarBooking) {
+    setEditingBooking(booking);
+    setBookingEditForm(toBookingEditForm(booking));
+    setMessage(undefined);
+  }
+
+  async function handleCorrectBooking() {
+    if (!editingBooking || !bookingEditForm) return;
+    setIsCorrectingBooking(true);
+    setMessage(undefined);
+    try {
+      const patch = buildBookingCorrectionPatch(editingBooking, bookingEditForm);
+      const response = await correctBooking(editingBooking.bookingExtractedId, patch);
+      if (response.status === "rejected") {
+        setMessage(response.message);
+        return;
+      }
+      setEditingBooking(undefined);
+      setBookingEditForm(undefined);
+      await loadCalendar();
+    } finally {
+      setIsCorrectingBooking(false);
+    }
+  }
+
   const groupedBookings = useMemo(() => groupBookingsByDate(bookings), [bookings]);
   const tripLaneSpans = useMemo(() => buildTripLaneSpans(bookings, trips), [bookings, trips]);
+  const bookingEditTravelerLabels = useMemo(
+    () => [...new Set([...travelerLabels, ...(bookingEditForm?.travelers ?? [])])].sort(),
+    [travelerLabels, bookingEditForm?.travelers],
+  );
   const calendarGridStyle = { "--trip-lane-count": String(Math.min(2, Math.max(1, tripLaneSpans.length))) } as CSSProperties;
 
   return (
@@ -297,6 +357,17 @@ export function App() {
                       {booking.travelers.length > 0 ? <TravelerBadges travelers={booking.travelers} /> : null}
                       {booking.trip ? <TripChip trip={booking.trip} /> : null}
                       <span className="statusPill">{booking.status === "needs_review" ? "Review" : booking.status}</span>
+                      <button
+                        className="editButton"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openBookingEditor(booking);
+                        }}
+                        title="Buchung bearbeiten"
+                      >
+                        <Pencil size={16} />
+                      </button>
                       <button
                         className={pendingDeleteBookingId === booking.bookingExtractedId ? "deleteButton confirm" : "deleteButton"}
                         type="button"
@@ -551,6 +622,228 @@ export function App() {
           </section>
         </div>
       ) : null}
+
+      {editingBooking && bookingEditForm ? (
+        <div className="dialogBackdrop blur" role="presentation">
+          <section className="dialog bookingEditDialog" aria-label="Buchung bearbeiten">
+            <header className="dialogHeader">
+              <div>
+                <div className="eyebrow">Buchung</div>
+                <h2>Buchung bearbeiten</h2>
+              </div>
+              <button
+                className="iconButton"
+                type="button"
+                onClick={() => {
+                  setEditingBooking(undefined);
+                  setBookingEditForm(undefined);
+                }}
+                title="Schließen"
+              >
+                <X size={18} />
+              </button>
+            </header>
+
+            <div className="bookingEditForm">
+              <label className="fullSpan">
+                <span>Titel</span>
+                <input
+                  value={bookingEditForm.title}
+                  onChange={(event) => setBookingEditForm((form) => form && { ...form, title: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Art</span>
+                <select
+                  value={bookingEditForm.type}
+                  onChange={(event) =>
+                    setBookingEditForm((form) => form && { ...form, type: event.target.value as BookingType })
+                  }
+                >
+                  {bookingTypeOptions.map((type) => (
+                    <option value={type} key={type}>
+                      {bookingTypeLabel(type)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Status</span>
+                <select
+                  value={bookingEditForm.status}
+                  onChange={(event) =>
+                    setBookingEditForm((form) => form && { ...form, status: event.target.value as BookingStatus })
+                  }
+                >
+                  {bookingStatusOptions.map((status) => (
+                    <option value={status} key={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="fieldLabel">
+                  Kennung
+                  <span
+                    className="infoTooltip"
+                    title="Konkrete Leistungskennung, z.B. Flugnummer QR971, Zugnummer ICE 579, Buslinie oder Fährverbindung."
+                  >
+                    <Info size={13} />
+                  </span>
+                </span>
+                <input
+                  value={bookingEditForm.serviceIdentifier}
+                  onChange={(event) =>
+                    setBookingEditForm((form) => form && { ...form, serviceIdentifier: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                <span className="fieldLabel">
+                  Anbieter
+                  <span
+                    className="infoTooltip"
+                    title="Der Betreiber oder Verkäufer der Leistung, z.B. Qatar Airways, Deutsche Bahn, Airbnb, Hotelname oder Theater."
+                  >
+                    <Info size={13} />
+                  </span>
+                </span>
+                <input
+                  value={bookingEditForm.operator}
+                  onChange={(event) => setBookingEditForm((form) => form && { ...form, operator: event.target.value })}
+                />
+              </label>
+
+              <div className="fullSpan timeEditRow">
+                <fieldset>
+                  <legend>Start</legend>
+                  <input
+                    type="datetime-local"
+                    value={bookingEditForm.startValue}
+                    onChange={(event) => setBookingEditForm((form) => form && { ...form, startValue: event.target.value })}
+                  />
+                  <select
+                    value={bookingEditForm.startTimezone}
+                    onChange={(event) =>
+                      setBookingEditForm((form) => form && { ...form, startTimezone: event.target.value })
+                    }
+                  >
+                    {timezoneOptions.map((option) => (
+                      <option value={option.value} key={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </fieldset>
+
+                <button
+                  className="copyTimeButton"
+                  type="button"
+                  title="Start und Zeitzone nach Ende übernehmen"
+                  onClick={() =>
+                    setBookingEditForm(
+                      (form) =>
+                        form && {
+                          ...form,
+                          endValue: form.startValue,
+                          endTimezone: form.startTimezone,
+                        },
+                    )
+                  }
+                >
+                  <ArrowRight size={16} />
+                </button>
+
+                <fieldset>
+                  <legend>Ende</legend>
+                  <input
+                    type="datetime-local"
+                    value={bookingEditForm.endValue}
+                    onChange={(event) => setBookingEditForm((form) => form && { ...form, endValue: event.target.value })}
+                  />
+                  <select
+                    value={bookingEditForm.endTimezone}
+                    onChange={(event) => setBookingEditForm((form) => form && { ...form, endTimezone: event.target.value })}
+                  >
+                    {timezoneOptions.map((option) => (
+                      <option value={option.value} key={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </fieldset>
+              </div>
+
+              <label>
+                <span>Von</span>
+                <input
+                  value={bookingEditForm.fromText}
+                  onChange={(event) => setBookingEditForm((form) => form && { ...form, fromText: event.target.value })}
+                  placeholder="Startort, Adresse, Flughafen, Bahnhof ..."
+                />
+              </label>
+
+              <label>
+                <span>Nach</span>
+                <input
+                  value={bookingEditForm.toText}
+                  onChange={(event) => setBookingEditForm((form) => form && { ...form, toText: event.target.value })}
+                  placeholder="Zielort, Adresse, Unterkunft, Veranstaltungsort ..."
+                />
+              </label>
+
+              <div className="fullSpan travelerCheckList">
+                <span>Reisende</span>
+                <div>
+                  {bookingEditTravelerLabels.map((label) => (
+                    <button
+                      className={
+                        bookingEditForm.travelers.includes(label) ? "travelerSelectButton selected" : "travelerSelectButton"
+                      }
+                      type="button"
+                      key={label}
+                      onClick={() =>
+                        setBookingEditForm((form) =>
+                          form && toggleTravelerInForm(form, label, !form.travelers.includes(label)),
+                        )
+                      }
+                      title={label}
+                    >
+                      <input
+                        type="checkbox"
+                        tabIndex={-1}
+                        checked={bookingEditForm.travelers.includes(label)}
+                        readOnly
+                      />
+                      <span className="travelerBadge" style={travelerBadgeStyle(label)}>
+                        {label}
+                      </span>
+                    </button>
+                  ))}
+                  {bookingEditTravelerLabels.length === 0 ? <span className="emptyInline">Keine Reisenden konfiguriert.</span> : null}
+                </div>
+              </div>
+
+              <label className="fullSpan">
+                <span>Details</span>
+                <textarea
+                  value={bookingEditForm.details}
+                  onChange={(event) => setBookingEditForm((form) => form && { ...form, details: event.target.value })}
+                />
+              </label>
+            </div>
+
+            <footer className="dialogFooter bookingEditFooter">
+              <div className="hint">Gespeichert werden nur geänderte Felder.</div>
+              <button className="primaryButton" type="button" onClick={handleCorrectBooking} disabled={isCorrectingBooking}>
+                {isCorrectingBooking ? <Loader2 className="spin" size={18} /> : <Pencil size={18} />}
+                Speichern
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 
@@ -706,6 +999,10 @@ function BookingTypeIcon({ type }: { type: CalendarBooking["type"] }) {
       <Icon size={22} strokeWidth={2.4} />
     </span>
   );
+}
+
+function bookingTypeLabel(type: BookingType): string {
+  return bookingTypeIconConfig[type]?.label ?? type;
 }
 
 function ActivityLogPage() {
@@ -972,6 +1269,132 @@ const bookingTypeIconConfig: Record<
     background: "#edf2f0",
   },
 };
+
+const bookingTypeOptions: BookingType[] = [
+  "flight",
+  "accommodation",
+  "train",
+  "bus",
+  "ferry",
+  "car",
+  "event",
+  "restaurant",
+  "activity",
+  "other",
+];
+
+const bookingStatusOptions: BookingStatus[] = ["needs_review", "planned", "cancelled"];
+
+const timezoneOptions = [
+  { value: "", label: "Keine Zeitzone" },
+  ...Array.from({ length: 25 }, (_, index) => index - 12).map((offset) => ({
+    value: offset === 0 ? "+00:00" : `${offset > 0 ? "+" : "-"}${String(Math.abs(offset)).padStart(2, "0")}:00`,
+    label: offset === 0 ? "UTC +/-0" : `UTC ${offset > 0 ? "+" : ""}${offset}`,
+  })),
+];
+
+function toBookingEditForm(booking: CalendarBooking): BookingEditForm {
+  return {
+    title: booking.title,
+    type: booking.type,
+    serviceIdentifier: booking.serviceIdentifier ?? "",
+    operator: booking.operator ?? "",
+    status: booking.status,
+    startValue: toDateTimeInputValue(booking.start),
+    startTimezone: toOffsetTimezoneValue(booking.start.timezone),
+    endValue: booking.end ? toDateTimeInputValue(booking.end) : "",
+    endTimezone: toOffsetTimezoneValue(booking.end?.timezone),
+    fromText: placeToEditText(booking.from),
+    toText: placeToEditText(booking.to),
+    travelers: booking.travelers,
+    details: booking.details,
+  };
+}
+
+function buildBookingCorrectionPatch(booking: CalendarBooking, form: BookingEditForm): BookingCorrectionPatch {
+  const patch: BookingCorrectionPatch = {};
+  if (form.title !== booking.title) patch.title = form.title;
+  if (form.type !== booking.type) patch.type = form.type;
+  if (normalizeOptionalText(form.serviceIdentifier) !== (booking.serviceIdentifier ?? undefined)) {
+    patch.serviceIdentifier = normalizeOptionalText(form.serviceIdentifier) ?? null;
+  }
+  if (normalizeOptionalText(form.operator) !== (booking.operator ?? undefined)) {
+    patch.operator = normalizeOptionalText(form.operator) ?? null;
+  }
+  if (form.status !== booking.status) patch.status = form.status;
+
+  const start = toBookingDateTime(form.startValue, form.startTimezone);
+  if (!sameJson(start, booking.start)) patch.start = start;
+
+  const end = toOptionalBookingDateTime(form.endValue, form.endTimezone);
+  if (!sameJson(end, booking.end)) patch.end = end ?? null;
+
+  const from = toOptionalBookingPlace(form.fromText);
+  if (!sameJson(from, booking.from)) patch.from = from ?? null;
+
+  const to = toOptionalBookingPlace(form.toText);
+  if (!sameJson(to, booking.to)) patch.to = to ?? null;
+
+  if (!sameJson(form.travelers, booking.travelers)) patch.travelers = form.travelers;
+  if (form.details !== booking.details) patch.details = form.details;
+  return patch;
+}
+
+function toggleTravelerInForm(form: BookingEditForm, traveler: string, checked: boolean): BookingEditForm {
+  const travelers = checked
+    ? [...new Set([...form.travelers, traveler])]
+    : form.travelers.filter((existing) => existing !== traveler);
+  return { ...form, travelers };
+}
+
+function toBookingDateTime(value: string, timezone: string): BookingDateTime {
+  return {
+    value: value.trim(),
+    precision: "datetime",
+    timezone: normalizeOptionalText(timezone),
+  };
+}
+
+function toOptionalBookingDateTime(
+  value: string,
+  timezone: string,
+): BookingDateTime | undefined {
+  if (!value.trim()) return undefined;
+  return toBookingDateTime(value, timezone);
+}
+
+function toOptionalBookingPlace(text: string): BookingPlace | undefined {
+  const normalizedName = normalizeOptionalText(text);
+  if (!normalizedName) return undefined;
+  return {
+    name: normalizedName,
+  };
+}
+
+function placeToEditText(place: BookingPlace | undefined): string {
+  if (!place) return "";
+  return [place.name, place.city, place.country].filter(Boolean).join(", ");
+}
+
+function toDateTimeInputValue(value: BookingDateTime): string {
+  if (value.precision === "date") return `${value.value.slice(0, 10)}T00:00`;
+  const withoutZone = value.value.replace(/Z$/, "");
+  return withoutZone.slice(0, 16);
+}
+
+function toOffsetTimezoneValue(value: string | undefined): string {
+  if (!value) return "";
+  return /^[-+]\d{2}:\d{2}$/.test(value) ? value : "";
+}
+
+function normalizeOptionalText(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function sameJson(first: unknown, second: unknown): boolean {
+  return JSON.stringify(first ?? null) === JSON.stringify(second ?? null);
+}
 
 type BookingGroup = {
   date: string;

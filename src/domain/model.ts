@@ -37,6 +37,20 @@ export type ExtractedBooking = {
   details: string;
 };
 
+export type BookingCorrectionPatch = {
+  title?: string;
+  type?: BookingType;
+  serviceIdentifier?: string | null;
+  operator?: string | null;
+  status?: BookingStatus;
+  start?: BookingDateTime;
+  end?: BookingDateTime | null;
+  from?: BookingPlace | null;
+  to?: BookingPlace | null;
+  travelers?: string[];
+  details?: string;
+};
+
 export type CalendarBooking = {
   bookingExtractedId: string;
   documentTextRecordedId: string;

@@ -102,6 +102,20 @@ function tripCalApiPlugin() {
         sendJson(response, result.status === "succeeded" ? 200 : 400, result);
       });
 
+      server.middlewares.use("/api/correct-booking", async (request, response) => {
+        if (request.method !== "POST") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+        const body = await readJsonBody(request);
+        const runtime = await getProcessorRuntime();
+        const result = await runtime.processor.correctBooking({
+          bookingExtractedId: String(body.bookingExtractedId ?? ""),
+          patch: typeof body.patch === "object" && body.patch !== null ? body.patch : {},
+        });
+        sendJson(response, result.status === "accepted" ? 200 : 400, result);
+      });
+
       server.middlewares.use("/api/submit-document-files", async (request, response) => {
         if (request.method !== "POST") {
           sendJson(response, 405, { message: "Method not allowed" });

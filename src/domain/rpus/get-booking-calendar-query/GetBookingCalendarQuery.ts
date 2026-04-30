@@ -3,6 +3,7 @@ import type { EventRecord, EventStore } from "@ricofritzsche/eventstore";
 import type {
   BookingExtractedFromDocumentTextV1Payload,
   BookingAssignedToTripV1Payload,
+  BookingCorrectedV1Payload,
   BookingDeletedV1Payload,
   DocumentFileUploadedV1Payload,
   DocumentTextRecordedV1Payload,
@@ -10,6 +11,7 @@ import type {
 } from "../../events/events";
 import {
   bookingAssignedToTripV1,
+  bookingCorrectedV1,
   bookingDeletedV1,
   bookingExtractedFromDocumentTextV1,
   documentFileUploadedV1,
@@ -17,6 +19,7 @@ import {
   tripCreatedV1,
 } from "../../events/eventTypes";
 import type { CalendarBooking } from "../../model";
+import type { BookingCorrectionPatch } from "../../model";
 import type { TravelerResolver } from "../../../providers/travelers/TravelerResolver";
 
 export type GetBookingCalendarQueryRequest = Record<string, never>;
@@ -40,17 +43,21 @@ export class GetBookingCalendarQuery {
         documentFileUploadedV1,
         tripCreatedV1,
         bookingAssignedToTripV1,
+        bookingCorrectedV1,
       ]),
     );
     const documentTexts = mapDocumentTexts(result.events);
     const documentFiles = mapDocumentFiles(result.events);
     const trips = mapTrips(result.events);
     const assignedTrips = mapAssignedTrips(result.events);
+    const corrections = mapBookingCorrections(result.events);
     const deletedBookingIds = mapDeletedBookingIds(result.events);
     const bookings = result.events
       .filter((event) => event.eventType === bookingExtractedFromDocumentTextV1)
       .filter((event) => !deletedBookingIds.has(String(event.payload.id)))
-      .map((event) => toCalendarBooking(event, documentTexts, documentFiles, trips, assignedTrips, this.travelerResolver))
+      .map((event) =>
+        toCalendarBooking(event, documentTexts, documentFiles, trips, assignedTrips, corrections, this.travelerResolver),
+      )
       .sort(compareCalendarBookings);
 
     return { bookings };
@@ -74,13 +81,15 @@ function toCalendarBooking(
   documentFiles: Map<string, DocumentFileUploadedV1Payload>,
   trips: Map<string, TripCreatedV1Payload>,
   assignedTrips: Map<string, string>,
+  corrections: Map<string, BookingCorrectionPatch[]>,
   travelerResolver: TravelerResolver,
 ): CalendarBooking {
   const payload = event.payload as BookingExtractedFromDocumentTextV1Payload;
+  const corrected = applyCorrections(payload, corrections.get(payload.id) ?? []);
   const documentText = documentTexts.get(payload.documentTextRecordedId);
   const documentFile =
     documentText?.source === "file" ? documentFiles.get(documentText.documentFileUploadedId) : undefined;
-  const resolvedTravelers = travelerResolver.resolve(payload.travelers);
+  const resolvedTravelers = travelerResolver.resolve(corrected.travelers);
   const trip = trips.get(assignedTrips.get(payload.id) ?? "");
 
   return {
@@ -92,18 +101,18 @@ function toCalendarBooking(
           originalFileName: documentFile.originalFileName,
         }
       : undefined,
-    title: payload.title,
-    type: payload.type,
-    serviceIdentifier: payload.serviceIdentifier,
-    operator: payload.operator,
-    status: payload.status,
-    start: payload.start,
-    end: payload.end,
-    from: payload.from,
-    to: payload.to,
-    travelers: resolvedTravelers.travelers.length > 0 ? resolvedTravelers.travelers : payload.travelers,
+    title: corrected.title,
+    type: corrected.type,
+    serviceIdentifier: corrected.serviceIdentifier,
+    operator: corrected.operator,
+    status: corrected.status,
+    start: corrected.start,
+    end: corrected.end,
+    from: corrected.from,
+    to: corrected.to,
+    travelers: resolvedTravelers.travelers.length > 0 ? resolvedTravelers.travelers : corrected.travelers,
     rawTravelers: payload.rawTravelers ?? payload.travelers,
-    details: payload.details,
+    details: corrected.details,
     processedAt: payload.extractedAt,
     trip: trip
       ? {
@@ -114,6 +123,27 @@ function toCalendarBooking(
         }
       : undefined,
   };
+}
+
+function applyCorrections(
+  payload: BookingExtractedFromDocumentTextV1Payload,
+  corrections: BookingCorrectionPatch[],
+): BookingExtractedFromDocumentTextV1Payload {
+  const corrected: BookingExtractedFromDocumentTextV1Payload = { ...payload };
+  for (const patch of corrections) {
+    if (patch.title !== undefined) corrected.title = patch.title;
+    if (patch.type !== undefined) corrected.type = patch.type;
+    if (patch.serviceIdentifier !== undefined) corrected.serviceIdentifier = patch.serviceIdentifier ?? undefined;
+    if (patch.operator !== undefined) corrected.operator = patch.operator ?? undefined;
+    if (patch.status !== undefined) corrected.status = patch.status as BookingExtractedFromDocumentTextV1Payload["status"];
+    if (patch.start !== undefined) corrected.start = patch.start;
+    if (patch.end !== undefined) corrected.end = patch.end ?? undefined;
+    if (patch.from !== undefined) corrected.from = patch.from ?? undefined;
+    if (patch.to !== undefined) corrected.to = patch.to ?? undefined;
+    if (patch.travelers !== undefined) corrected.travelers = patch.travelers;
+    if (patch.details !== undefined) corrected.details = patch.details;
+  }
+  return corrected;
 }
 
 function mapDocumentTexts(events: EventRecord[]): Map<string, DocumentTextRecordedV1Payload> {
@@ -158,6 +188,17 @@ function mapAssignedTrips(events: EventRecord[]): Map<string, string> {
     }
   }
   return assignments;
+}
+
+function mapBookingCorrections(events: EventRecord[]): Map<string, BookingCorrectionPatch[]> {
+  const corrections = new Map<string, BookingCorrectionPatch[]>();
+  for (const event of events) {
+    if (event.eventType === bookingCorrectedV1) {
+      const payload = event.payload as BookingCorrectedV1Payload;
+      corrections.set(payload.bookingExtractedId, [...(corrections.get(payload.bookingExtractedId) ?? []), payload.patch]);
+    }
+  }
+  return corrections;
 }
 
 function compareCalendarBookings(a: CalendarBooking, b: CalendarBooking): number {

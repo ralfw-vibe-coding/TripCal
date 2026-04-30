@@ -415,8 +415,8 @@ h1 {
 .bookingCompactRow {
   min-width: 0;
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto auto auto 34px 34px;
-  gap: 12px;
+  grid-template-columns: 38px minmax(0, 1fr) auto auto auto 28px 28px 28px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -500,9 +500,10 @@ h1 {
   font-weight: 800;
 }
 
-.expandButton {
-  width: 34px;
-  height: 34px;
+.expandButton,
+.editButton {
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   border: 1px solid transparent;
@@ -513,14 +514,15 @@ h1 {
 }
 
 .expandButton:hover,
+.editButton:hover,
 .deleteButton:hover {
   border-color: #d7dedb;
   background: #f7f7f4;
 }
 
 .deleteButton {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   border: 1px solid transparent;
@@ -637,6 +639,17 @@ h1 {
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
+.bookingEditDialog {
+  width: min(900px, 100%);
+  max-height: min(900px, calc(100vh - 24px));
+  overflow: auto;
+  grid-template-rows: auto auto auto;
+}
+
+.bookingEditDialog .dialogHeader {
+  padding-bottom: 8px;
+}
+
 .tripForm {
   display: grid;
   gap: 12px;
@@ -667,6 +680,146 @@ h1 {
   gap: 12px;
 }
 
+.bookingEditForm {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  padding: 8px 16px 12px;
+}
+
+.bookingEditForm label,
+.bookingEditForm fieldset,
+.travelerCheckList {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #40504d;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.fieldLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.infoTooltip {
+  width: 17px;
+  height: 17px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #cfd8d5;
+  border-radius: 999px;
+  color: #5b6f6a;
+  cursor: help;
+}
+
+.bookingEditForm fieldset {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 150px);
+  align-content: start;
+  border: 1px solid #e2e8e5;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.timeEditRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.copyTimeButton {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cfd8d5;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #40504d;
+  cursor: pointer;
+}
+
+.copyTimeButton:hover {
+  border-color: #18201f;
+  color: #18201f;
+}
+
+.bookingEditForm legend {
+  padding: 0 4px;
+}
+
+.bookingEditForm input,
+.bookingEditForm select,
+.bookingEditForm textarea {
+  min-height: 38px;
+  border: 1px solid #cfd8d5;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #18201f;
+}
+
+.bookingEditForm input::placeholder,
+.bookingEditForm textarea::placeholder {
+  color: #94a09c;
+  opacity: 1;
+  font-weight: 400;
+}
+
+.bookingEditForm textarea {
+  min-height: 120px;
+  padding: 10px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.bookingEditForm .fullSpan {
+  grid-column: 1 / -1;
+}
+
+.travelerCheckList > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.travelerSelectButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 39px;
+  height: 39px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  padding: 2px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.travelerSelectButton.selected {
+  border-color: #2563a9;
+}
+
+.travelerSelectButton input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.travelerSelectButton .travelerBadge {
+  width: 31px;
+  height: 31px;
+}
+
+.emptyInline {
+  color: #71817d;
+  font-size: 0.82rem;
+  font-weight: 400;
+}
+
 .dialogHeader,
 .dialogFooter {
   display: flex;
@@ -681,6 +834,11 @@ h1 {
 
 .dialogFooter {
   border-top: 1px solid #e2e8e5;
+}
+
+.bookingEditFooter {
+  border-top: 0;
+  padding-top: 8px;
 }
 
 textarea {
@@ -908,7 +1066,7 @@ textarea {
   }
 
   .bookingCompactRow {
-    grid-template-columns: 38px minmax(0, 1fr) auto auto 34px 34px;
+    grid-template-columns: 38px minmax(0, 1fr) auto auto 28px 28px 28px;
   }
 
   .bookingCompactRow .statusPill {
@@ -917,5 +1075,22 @@ textarea {
 
   .bookingExpanded {
     padding-left: 0;
+  }
+
+  .bookingEditForm {
+    grid-template-columns: 1fr;
+  }
+
+  .bookingEditForm fieldset {
+    grid-template-columns: 1fr;
+  }
+
+  .timeEditRow {
+    grid-template-columns: 1fr;
+  }
+
+  .copyTimeButton {
+    justify-self: center;
+    transform: rotate(90deg);
   }
 }

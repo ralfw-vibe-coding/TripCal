@@ -4,6 +4,7 @@ import type {
   AssignBookingToTripResponse,
 } from "./slices/assign-booking-to-trip/AssignBookingToTrip";
 import type { CreateTrip, CreateTripRequest, CreateTripResponse } from "./slices/create-trip/CreateTrip";
+import type { CorrectBooking, CorrectBookingRequest, CorrectBookingResponse } from "./slices/correct-booking/CorrectBooking";
 import type { DeleteBooking, DeleteBookingRequest, DeleteBookingResponse } from "./slices/delete-booking/DeleteBooking";
 import type { IngestEmail, IngestEmailRequest, IngestEmailResponse } from "./slices/ingest-email/IngestEmail";
 import type {
@@ -36,6 +37,7 @@ export class Processor {
     private readonly ingestEmailSlice: IngestEmail,
     private readonly createTripSlice: CreateTrip,
     private readonly assignBookingToTripSlice: AssignBookingToTrip,
+    private readonly correctBookingSlice: CorrectBooking,
     private readonly deleteBookingSlice: DeleteBooking,
     private readonly viewTripsSlice: ViewTrips,
     private readonly viewBookingCalendarSlice: ViewBookingCalendar,
@@ -63,6 +65,10 @@ export class Processor {
 
   assignBookingToTrip(request: AssignBookingToTripRequest): Promise<AssignBookingToTripResponse> {
     return this.assignBookingToTripSlice.process(request);
+  }
+
+  correctBooking(request: CorrectBookingRequest): Promise<CorrectBookingResponse> {
+    return this.correctBookingSlice.process(request);
   }
 
   deleteBooking(request: DeleteBookingRequest): Promise<DeleteBookingResponse> {
