@@ -3,3 +3,5 @@ export const documentFileUploadedV1 = "DocumentFileUploadedV1";
 export const emailIngestedV1 = "EmailIngestedV1";
 export const bookingExtractedFromDocumentTextV1 = "BookingExtractedFromDocumentTextV1";
 export const bookingDeletedV1 = "BookingDeletedV1";
+export const tripCreatedV1 = "TripCreatedV1";
+export const bookingAssignedToTripV1 = "BookingAssignedToTripV1";

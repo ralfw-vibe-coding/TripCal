@@ -6,6 +6,9 @@ import type {
 } from "../../behavior/slices/submit-document-files/SubmitDocumentFiles";
 import type { ViewBookingCalendarResponse } from "../../behavior/slices/view-booking-calendar/ViewBookingCalendar";
 import type { DeleteBookingResponse } from "../../behavior/slices/delete-booking/DeleteBooking";
+import type { AssignBookingToTripResponse } from "../../behavior/slices/assign-booking-to-trip/AssignBookingToTrip";
+import type { CreateTripResponse } from "../../behavior/slices/create-trip/CreateTrip";
+import type { ViewTripsResponse } from "../../behavior/slices/view-trips/ViewTrips";
 import type { ActivityLogEntry } from "../../providers/activity-log/ActivityLogProvider";
 
 export async function viewBookingCalendar(): Promise<ViewBookingCalendarResponse> {
@@ -74,4 +77,47 @@ export async function viewActivityLog(): Promise<{ entries: ActivityLogEntry[] }
     throw new Error("Log konnte nicht geladen werden.");
   }
   return (await response.json()) as { entries: ActivityLogEntry[] };
+}
+
+export async function viewTrips(): Promise<ViewTripsResponse> {
+  const response = await fetch("/api/view-trips");
+  if (!response.ok) {
+    throw new Error("Trips konnten nicht geladen werden.");
+  }
+  return (await response.json()) as ViewTripsResponse;
+}
+
+export async function createTrip(request: {
+  shortCode: string;
+  title?: string;
+  owner: string;
+  startDate: string;
+  endDate: string;
+}): Promise<CreateTripResponse> {
+  const response = await fetch("/api/create-trip", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  const body = (await response.json()) as CreateTripResponse;
+  if (!response.ok && body.status !== "failed") {
+    throw new Error("Trip konnte nicht angelegt werden.");
+  }
+  return body;
+}
+
+export async function assignBookingToTrip(
+  bookingExtractedId: string,
+  tripCreatedId: string,
+): Promise<AssignBookingToTripResponse> {
+  const response = await fetch("/api/assign-booking-to-trip", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ bookingExtractedId, tripCreatedId }),
+  });
+  const body = (await response.json()) as AssignBookingToTripResponse;
+  if (!response.ok && body.status !== "failed") {
+    throw new Error("Trip konnte nicht zugeordnet werden.");
+  }
+  return body;
 }

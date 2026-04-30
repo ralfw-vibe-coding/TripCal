@@ -1,3 +1,9 @@
+import type {
+  AssignBookingToTrip,
+  AssignBookingToTripRequest,
+  AssignBookingToTripResponse,
+} from "./slices/assign-booking-to-trip/AssignBookingToTrip";
+import type { CreateTrip, CreateTripRequest, CreateTripResponse } from "./slices/create-trip/CreateTrip";
 import type { DeleteBooking, DeleteBookingRequest, DeleteBookingResponse } from "./slices/delete-booking/DeleteBooking";
 import type { IngestEmail, IngestEmailRequest, IngestEmailResponse } from "./slices/ingest-email/IngestEmail";
 import type {
@@ -20,6 +26,7 @@ import type {
   ViewBookingCalendarRequest,
   ViewBookingCalendarResponse,
 } from "./slices/view-booking-calendar/ViewBookingCalendar";
+import type { ViewTrips, ViewTripsRequest, ViewTripsResponse } from "./slices/view-trips/ViewTrips";
 
 export class Processor {
   constructor(
@@ -27,7 +34,10 @@ export class Processor {
     private readonly submitDocumentImageSlice: SubmitDocumentImage,
     private readonly submitDocumentFilesSlice: SubmitDocumentFiles,
     private readonly ingestEmailSlice: IngestEmail,
+    private readonly createTripSlice: CreateTrip,
+    private readonly assignBookingToTripSlice: AssignBookingToTrip,
     private readonly deleteBookingSlice: DeleteBooking,
+    private readonly viewTripsSlice: ViewTrips,
     private readonly viewBookingCalendarSlice: ViewBookingCalendar,
   ) {}
 
@@ -47,8 +57,20 @@ export class Processor {
     return this.ingestEmailSlice.process(request);
   }
 
+  createTrip(request: CreateTripRequest): Promise<CreateTripResponse> {
+    return this.createTripSlice.process(request);
+  }
+
+  assignBookingToTrip(request: AssignBookingToTripRequest): Promise<AssignBookingToTripResponse> {
+    return this.assignBookingToTripSlice.process(request);
+  }
+
   deleteBooking(request: DeleteBookingRequest): Promise<DeleteBookingResponse> {
     return this.deleteBookingSlice.process(request);
+  }
+
+  viewTrips(request: ViewTripsRequest = {}): Promise<ViewTripsResponse> {
+    return this.viewTripsSlice.process(request);
   }
 
   viewBookingCalendar(request: ViewBookingCalendarRequest = {}): Promise<ViewBookingCalendarResponse> {

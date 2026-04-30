@@ -2,15 +2,19 @@ import { createFilter } from "@ricofritzsche/eventstore";
 import type { EventRecord, EventStore } from "@ricofritzsche/eventstore";
 import type {
   BookingExtractedFromDocumentTextV1Payload,
+  BookingAssignedToTripV1Payload,
   BookingDeletedV1Payload,
   DocumentFileUploadedV1Payload,
   DocumentTextRecordedV1Payload,
+  TripCreatedV1Payload,
 } from "../../events/events";
 import {
+  bookingAssignedToTripV1,
   bookingDeletedV1,
   bookingExtractedFromDocumentTextV1,
   documentFileUploadedV1,
   documentTextRecordedV1,
+  tripCreatedV1,
 } from "../../events/eventTypes";
 import type { CalendarBooking } from "../../model";
 import type { TravelerResolver } from "../../../providers/travelers/TravelerResolver";
@@ -29,15 +33,24 @@ export class GetBookingCalendarQuery {
 
   async process(_request: GetBookingCalendarQueryRequest = {}): Promise<GetBookingCalendarQueryResponse> {
     const result = await this.eventStore.query(
-      createFilter([bookingExtractedFromDocumentTextV1, bookingDeletedV1, documentTextRecordedV1, documentFileUploadedV1]),
+      createFilter([
+        bookingExtractedFromDocumentTextV1,
+        bookingDeletedV1,
+        documentTextRecordedV1,
+        documentFileUploadedV1,
+        tripCreatedV1,
+        bookingAssignedToTripV1,
+      ]),
     );
     const documentTexts = mapDocumentTexts(result.events);
     const documentFiles = mapDocumentFiles(result.events);
+    const trips = mapTrips(result.events);
+    const assignedTrips = mapAssignedTrips(result.events);
     const deletedBookingIds = mapDeletedBookingIds(result.events);
     const bookings = result.events
       .filter((event) => event.eventType === bookingExtractedFromDocumentTextV1)
       .filter((event) => !deletedBookingIds.has(String(event.payload.id)))
-      .map((event) => toCalendarBooking(event, documentTexts, documentFiles, this.travelerResolver))
+      .map((event) => toCalendarBooking(event, documentTexts, documentFiles, trips, assignedTrips, this.travelerResolver))
       .sort(compareCalendarBookings);
 
     return { bookings };
@@ -59,6 +72,8 @@ function toCalendarBooking(
   event: EventRecord,
   documentTexts: Map<string, DocumentTextRecordedV1Payload>,
   documentFiles: Map<string, DocumentFileUploadedV1Payload>,
+  trips: Map<string, TripCreatedV1Payload>,
+  assignedTrips: Map<string, string>,
   travelerResolver: TravelerResolver,
 ): CalendarBooking {
   const payload = event.payload as BookingExtractedFromDocumentTextV1Payload;
@@ -66,6 +81,7 @@ function toCalendarBooking(
   const documentFile =
     documentText?.source === "file" ? documentFiles.get(documentText.documentFileUploadedId) : undefined;
   const resolvedTravelers = travelerResolver.resolve(payload.travelers);
+  const trip = trips.get(assignedTrips.get(payload.id) ?? "");
 
   return {
     bookingExtractedId: payload.id,
@@ -89,6 +105,14 @@ function toCalendarBooking(
     rawTravelers: payload.rawTravelers ?? payload.travelers,
     details: payload.details,
     processedAt: payload.extractedAt,
+    trip: trip
+      ? {
+          tripCreatedId: trip.id,
+          shortCode: trip.shortCode,
+          color: trip.color,
+          owner: trip.owner,
+        }
+      : undefined,
   };
 }
 
@@ -112,6 +136,28 @@ function mapDocumentFiles(events: EventRecord[]): Map<string, DocumentFileUpload
     }
   }
   return documents;
+}
+
+function mapTrips(events: EventRecord[]): Map<string, TripCreatedV1Payload> {
+  const trips = new Map<string, TripCreatedV1Payload>();
+  for (const event of events) {
+    if (event.eventType === tripCreatedV1) {
+      const payload = event.payload as TripCreatedV1Payload;
+      trips.set(payload.id, payload);
+    }
+  }
+  return trips;
+}
+
+function mapAssignedTrips(events: EventRecord[]): Map<string, string> {
+  const assignments = new Map<string, string>();
+  for (const event of events) {
+    if (event.eventType === bookingAssignedToTripV1) {
+      const payload = event.payload as BookingAssignedToTripV1Payload;
+      assignments.set(payload.bookingExtractedId, payload.tripCreatedId);
+    }
+  }
+  return assignments;
 }
 
 function compareCalendarBookings(a: CalendarBooking, b: CalendarBooking): number {

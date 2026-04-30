@@ -5,14 +5,20 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { Processor } from "../behavior/Processor";
 import { RecordDocumentTextAndExtractBookings } from "../behavior/flows/RecordDocumentTextAndExtractBookings";
+import { AssignBookingToTrip } from "../behavior/slices/assign-booking-to-trip/AssignBookingToTrip";
+import { CreateTrip } from "../behavior/slices/create-trip/CreateTrip";
 import { DeleteBooking } from "../behavior/slices/delete-booking/DeleteBooking";
 import { IngestEmail } from "../behavior/slices/ingest-email/IngestEmail";
 import { SubmitDocumentImage } from "../behavior/slices/submit-document-image/SubmitDocumentImage";
 import { SubmitDocumentFiles } from "../behavior/slices/submit-document-files/SubmitDocumentFiles";
 import { SubmitDocumentText } from "../behavior/slices/submit-document-text/SubmitDocumentText";
 import { ViewBookingCalendar } from "../behavior/slices/view-booking-calendar/ViewBookingCalendar";
+import { ViewTrips } from "../behavior/slices/view-trips/ViewTrips";
+import { AssignBookingToTripCommand } from "../domain/rpus/assign-booking-to-trip-command/AssignBookingToTripCommand";
+import { CreateTripCommand } from "../domain/rpus/create-trip-command/CreateTripCommand";
 import { DeleteBookingCommand } from "../domain/rpus/delete-booking-command/DeleteBookingCommand";
 import { GetBookingCalendarQuery } from "../domain/rpus/get-booking-calendar-query/GetBookingCalendarQuery";
+import { GetTripsQuery } from "../domain/rpus/get-trips-query/GetTripsQuery";
 import { RecordDocumentFileUploadedCommand } from "../domain/rpus/record-document-file-uploaded-command/RecordDocumentFileUploadedCommand";
 import { RecordEmailIngestedCommand } from "../domain/rpus/record-email-ingested-command/RecordEmailIngestedCommand";
 import { RecordExtractedBookingsCommand } from "../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
@@ -50,10 +56,13 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
 
   const submitDocumentTextCommand = new SubmitDocumentTextCommand(store, idGenerator);
   const deleteBookingCommand = new DeleteBookingCommand(store, idGenerator, clock);
+  const createTripCommand = new CreateTripCommand(store, idGenerator, clock, readInitialTripNumber());
+  const assignBookingToTripCommand = new AssignBookingToTripCommand(store, idGenerator, clock);
   const recordEmailIngestedCommand = new RecordEmailIngestedCommand(store, idGenerator);
   const recordDocumentFileUploadedCommand = new RecordDocumentFileUploadedCommand(store, idGenerator);
   const recordExtractedBookingsCommand = new RecordExtractedBookingsCommand(store, idGenerator, travelerResolver);
   const getBookingCalendarQuery = new GetBookingCalendarQuery(store, travelerResolver);
+  const getTripsQuery = new GetTripsQuery(store);
 
   const recordDocumentTextAndExtractBookings = new RecordDocumentTextAndExtractBookings(
     clock,
@@ -65,6 +74,8 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   const submitDocumentText = new SubmitDocumentText(recordDocumentTextAndExtractBookings);
   const submitDocumentImage = new SubmitDocumentImage(textExtractionProvider, recordDocumentTextAndExtractBookings);
   const deleteBooking = new DeleteBooking(deleteBookingCommand);
+  const createTrip = new CreateTrip(createTripCommand);
+  const assignBookingToTrip = new AssignBookingToTrip(assignBookingToTripCommand);
   const ingestEmail = new IngestEmail(
     clock,
     fileStorageProvider,
@@ -82,6 +93,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
     recordDocumentTextAndExtractBookings,
   );
   const viewBookingCalendar = new ViewBookingCalendar(getBookingCalendarQuery);
+  const viewTrips = new ViewTrips(getTripsQuery);
 
   return {
     eventStore: store,
@@ -92,7 +104,10 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
       submitDocumentImage,
       submitDocumentFiles,
       ingestEmail,
+      createTrip,
+      assignBookingToTrip,
       deleteBooking,
+      viewTrips,
       viewBookingCalendar,
     ),
   };
@@ -171,6 +186,11 @@ function createActivityLogProvider(idGenerator: CryptoIdGenerator): ActivityLogP
 
 function createTravelerResolver() {
   return new TravelerResolver(parseTravelerAliases(readRuntimeEnv("TRAVELERS_JSON")));
+}
+
+function readInitialTripNumber(): number {
+  const value = Number(readRuntimeEnv("INITIAL_TRIP_NUMBER") ?? 1);
+  return Number.isInteger(value) && value > 0 ? value : 1;
 }
 
 function readRuntimeEnv(name: string, fallbackName?: string): string | undefined {

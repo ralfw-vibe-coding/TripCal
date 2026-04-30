@@ -62,6 +62,46 @@ function tripCalApiPlugin() {
         sendJson(response, result.status === "accepted" ? 200 : 400, result);
       });
 
+      server.middlewares.use("/api/view-trips", async (request, response) => {
+        if (request.method !== "GET") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+        const runtime = await getProcessorRuntime();
+        sendJson(response, 200, await runtime.processor.viewTrips({}));
+      });
+
+      server.middlewares.use("/api/create-trip", async (request, response) => {
+        if (request.method !== "POST") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+        const body = await readJsonBody(request);
+        const runtime = await getProcessorRuntime();
+        const result = await runtime.processor.createTrip({
+          shortCode: String(body.shortCode ?? ""),
+          title: optionalString(body.title),
+          owner: String(body.owner ?? ""),
+          startDate: String(body.startDate ?? ""),
+          endDate: String(body.endDate ?? ""),
+        });
+        sendJson(response, result.status === "succeeded" ? 200 : 400, result);
+      });
+
+      server.middlewares.use("/api/assign-booking-to-trip", async (request, response) => {
+        if (request.method !== "POST") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+        const body = await readJsonBody(request);
+        const runtime = await getProcessorRuntime();
+        const result = await runtime.processor.assignBookingToTrip({
+          bookingExtractedId: String(body.bookingExtractedId ?? ""),
+          tripCreatedId: String(body.tripCreatedId ?? ""),
+        });
+        sendJson(response, result.status === "succeeded" ? 200 : 400, result);
+      });
+
       server.middlewares.use("/api/submit-document-files", async (request, response) => {
         if (request.method !== "POST") {
           sendJson(response, 405, { message: "Method not allowed" });

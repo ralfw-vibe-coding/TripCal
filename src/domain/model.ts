@@ -57,4 +57,23 @@ export type CalendarBooking = {
   rawTravelers?: string[];
   details: string;
   processedAt: string;
+  trip?: CalendarTripReference;
+};
+
+export type Trip = {
+  tripCreatedId: string;
+  tripNumber: number;
+  shortCode: string;
+  title?: string;
+  owner: string;
+  startDate: string;
+  endDate: string;
+  color: string;
+};
+
+export type CalendarTripReference = {
+  tripCreatedId: string;
+  shortCode: string;
+  color: string;
+  owner: string;
 };

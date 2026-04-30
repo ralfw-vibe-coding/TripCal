@@ -2,10 +2,12 @@ import type { Event } from "@ricofritzsche/eventstore";
 import type { BookingDateTime, BookingPlace, BookingStatus, BookingType } from "../model";
 import {
   bookingDeletedV1,
+  bookingAssignedToTripV1,
   bookingExtractedFromDocumentTextV1,
   documentFileUploadedV1,
   documentTextRecordedV1,
   emailIngestedV1,
+  tripCreatedV1,
 } from "./eventTypes";
 
 export type DocumentTextRecordedV1Payload =
@@ -109,12 +111,43 @@ export type BookingDeletedV1 = Event & {
   payload: BookingDeletedV1Payload;
 };
 
+export type TripCreatedV1Payload = {
+  id: string;
+  tripNumber: number;
+  shortCode: string;
+  title?: string;
+  owner: string;
+  startDate: string;
+  endDate: string;
+  color: string;
+  createdAt: string;
+};
+
+export type TripCreatedV1 = Event & {
+  eventType: typeof tripCreatedV1;
+  payload: TripCreatedV1Payload;
+};
+
+export type BookingAssignedToTripV1Payload = {
+  id: string;
+  bookingExtractedId: string;
+  tripCreatedId: string;
+  assignedAt: string;
+};
+
+export type BookingAssignedToTripV1 = Event & {
+  eventType: typeof bookingAssignedToTripV1;
+  payload: BookingAssignedToTripV1Payload;
+};
+
 export type TripCalEvent =
   | DocumentTextRecordedV1
   | DocumentFileUploadedV1
   | EmailIngestedV1
   | BookingExtractedFromDocumentTextV1
-  | BookingDeletedV1;
+  | BookingDeletedV1
+  | TripCreatedV1
+  | BookingAssignedToTripV1;
 
 export function isDocumentTextRecordedV1(event: Event): event is DocumentTextRecordedV1 {
   return event.eventType === documentTextRecordedV1;
@@ -136,4 +169,12 @@ export function isBookingExtractedFromDocumentTextV1(
 
 export function isBookingDeletedV1(event: Event): event is BookingDeletedV1 {
   return event.eventType === bookingDeletedV1;
+}
+
+export function isTripCreatedV1(event: Event): event is TripCreatedV1 {
+  return event.eventType === tripCreatedV1;
+}
+
+export function isBookingAssignedToTripV1(event: Event): event is BookingAssignedToTripV1 {
+  return event.eventType === bookingAssignedToTripV1;
 }

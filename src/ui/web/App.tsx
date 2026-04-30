@@ -24,15 +24,18 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { ChangeEvent, ClipboardEvent, DragEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CalendarBooking } from "../../domain/model";
+import type { CalendarBooking, Trip } from "../../domain/model";
 import type { ActivityLogEntry } from "../../providers/activity-log/ActivityLogProvider";
 import {
+  assignBookingToTrip,
+  createTrip,
   deleteBooking,
   submitDocumentFiles,
   submitDocumentImage,
   submitDocumentText,
   viewActivityLog,
   viewBookingCalendar,
+  viewTrips,
 } from "./api";
 
 type PastedImage = {
@@ -61,6 +64,7 @@ export function App() {
   }
 
   const [bookings, setBookings] = useState<CalendarBooking[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
   const [text, setText] = useState("");
   const [pastedImage, setPastedImage] = useState<PastedImage | undefined>();
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
@@ -69,6 +73,15 @@ export function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(true);
   const [showSubmit, setShowSubmit] = useState(false);
+  const [showTripDialog, setShowTripDialog] = useState(false);
+  const [isCreatingTrip, setIsCreatingTrip] = useState(false);
+  const [tripForm, setTripForm] = useState({
+    shortCode: "",
+    title: "",
+    owner: "RW",
+    startDate: "",
+    endDate: "",
+  });
   const [message, setMessage] = useState<string | undefined>();
   const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(() => new Set());
   const [pendingDeleteBookingId, setPendingDeleteBookingId] = useState<string | undefined>();
@@ -78,8 +91,9 @@ export function App() {
   async function loadCalendar() {
     setIsLoadingCalendar(true);
     try {
-      const response = await viewBookingCalendar();
-      setBookings(response.bookings);
+      const [calendarResponse, tripsResponse] = await Promise.all([viewBookingCalendar(), viewTrips()]);
+      setBookings(calendarResponse.bookings);
+      setTrips(tripsResponse.trips);
     } finally {
       setIsLoadingCalendar(false);
     }
@@ -141,6 +155,43 @@ export function App() {
     }
   }
 
+  function openTripDialog() {
+    setTripForm({ shortCode: "", title: "", owner: "RW", startDate: "", endDate: "" });
+    setShowTripDialog(true);
+  }
+
+  async function handleCreateTrip() {
+    setIsCreatingTrip(true);
+    setMessage(undefined);
+    try {
+      const response = await createTrip({
+        shortCode: tripForm.shortCode,
+        title: tripForm.title || undefined,
+        owner: tripForm.owner,
+        startDate: tripForm.startDate,
+        endDate: tripForm.endDate,
+      });
+      if (response.status === "failed") {
+        setMessage(tripCreateMessage(response.reason));
+        return;
+      }
+      setShowTripDialog(false);
+      await loadCalendar();
+    } finally {
+      setIsCreatingTrip(false);
+    }
+  }
+
+  async function handleAssignTrip(bookingExtractedId: string, tripCreatedId: string) {
+    if (!tripCreatedId) return;
+    const response = await assignBookingToTrip(bookingExtractedId, tripCreatedId);
+    if (response.status === "failed") {
+      setMessage("Trip konnte nicht zugeordnet werden.");
+      return;
+    }
+    await loadCalendar();
+  }
+
   const groupedBookings = useMemo(() => groupBookingsByDate(bookings), [bookings]);
 
   return (
@@ -163,8 +214,37 @@ export function App() {
 
       {message ? <div className="notice">{message}</div> : null}
 
-      <section className="calendarSurface" aria-label="Buchungskalender">
-        {isLoadingCalendar ? (
+      <section className="calendarLayout" aria-label="Buchungskalender">
+        <aside className="tripSidebar" aria-label="Trips">
+          <div className="tripSidebarHeader">
+            <span>Trips</span>
+            <button className="tripAddButton" type="button" onClick={openTripDialog} title="Trip anlegen">
+              <Plus size={16} />
+            </button>
+          </div>
+          <div className="tripList">
+            {trips.length === 0 ? (
+              <div className="tripEmpty">Keine Trips</div>
+            ) : (
+              trips.map((trip) => (
+                <div className="tripListItem" key={trip.tripCreatedId} style={{ borderLeftColor: trip.color }}>
+                  <div className="tripListTop">
+                    <strong>{trip.shortCode}</strong>
+                    <span className="travelerBadge tripOwnerBadge" title={trip.owner} style={travelerBadgeStyle(trip.owner)}>
+                      {trip.owner}
+                    </span>
+                  </div>
+                  <div className="tripListDates">
+                    {formatShortDate(trip.startDate)} - {formatShortDate(trip.endDate)}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </aside>
+
+        <div className="calendarSurface">
+          {isLoadingCalendar ? (
           <div className="emptyState">
             <Loader2 className="spin" size={24} />
             Kalender wird geladen
@@ -196,6 +276,7 @@ export function App() {
                         {bookingSecondary(booking) ? <div className="bookingSecondary">{bookingSecondary(booking)}</div> : null}
                       </div>
                       {booking.travelers.length > 0 ? <TravelerBadges travelers={booking.travelers} /> : null}
+                      {booking.trip ? <TripChip trip={booking.trip} /> : null}
                       <span className="statusPill">{booking.status === "needs_review" ? "Review" : booking.status}</span>
                       <button
                         className={pendingDeleteBookingId === booking.bookingExtractedId ? "deleteButton confirm" : "deleteButton"}
@@ -239,9 +320,23 @@ export function App() {
                             target="_blank"
                             rel="noreferrer"
                           >
-                            Originaldokument öffnen: {booking.sourceDocument.originalFileName}
+                            Originaldokument: {booking.sourceDocument.originalFileName}
                           </a>
                         ) : null}
+                        <label className="tripAssignControl">
+                          <span>Trip</span>
+                          <select
+                            value={booking.trip?.tripCreatedId ?? ""}
+                            onChange={(event) => void handleAssignTrip(booking.bookingExtractedId, event.target.value)}
+                          >
+                            <option value="">Nicht zugeordnet</option>
+                            {trips.map((trip) => (
+                              <option value={trip.tripCreatedId} key={trip.tripCreatedId}>
+                                {trip.shortCode}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                         <div className="processedAt">Verarbeitet: {formatProcessedAt(booking.processedAt)}</div>
                       </div>
                     ) : null}
@@ -251,7 +346,8 @@ export function App() {
               </section>
             </div>
           ))
-        )}
+          )}
+        </div>
       </section>
 
       <div className="logLinkWrap">
@@ -358,6 +454,73 @@ export function App() {
               <button className="primaryButton" type="button" onClick={handleSubmit} disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
                 Einreichen
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+
+      {showTripDialog ? (
+        <div className="dialogBackdrop blur" role="presentation">
+          <section className="dialog tripDialog" aria-label="Trip anlegen">
+            <header className="dialogHeader">
+              <div>
+                <div className="eyebrow">Trip</div>
+                <h2>Trip anlegen</h2>
+              </div>
+              <button className="iconButton" type="button" onClick={() => setShowTripDialog(false)} title="Schließen">
+                <X size={18} />
+              </button>
+            </header>
+            <div className="tripForm">
+              <label>
+                <span>Kürzel</span>
+                <input
+                  value={tripForm.shortCode}
+                  onChange={(event) => setTripForm((form) => ({ ...form, shortCode: event.target.value }))}
+                  placeholder="VN26"
+                />
+              </label>
+              <label>
+                <span>Titel optional</span>
+                <input
+                  value={tripForm.title}
+                  onChange={(event) => setTripForm((form) => ({ ...form, title: event.target.value }))}
+                  placeholder="Vietnam 2026"
+                />
+              </label>
+              <label>
+                <span>Owner</span>
+                <input
+                  value={tripForm.owner}
+                  onChange={(event) => setTripForm((form) => ({ ...form, owner: event.target.value }))}
+                  placeholder="RW"
+                />
+              </label>
+              <div className="tripDateRow">
+                <label>
+                  <span>Von</span>
+                  <input
+                    type="date"
+                    value={tripForm.startDate}
+                    onChange={(event) => setTripForm((form) => ({ ...form, startDate: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  <span>Bis</span>
+                  <input
+                    type="date"
+                    value={tripForm.endDate}
+                    onChange={(event) => setTripForm((form) => ({ ...form, endDate: event.target.value }))}
+                  />
+                </label>
+              </div>
+            </div>
+            <footer className="dialogFooter">
+              <div className="hint">Tripnummer und Farbe werden automatisch vergeben.</div>
+              <button className="primaryButton" type="button" onClick={handleCreateTrip} disabled={isCreatingTrip}>
+                {isCreatingTrip ? <Loader2 className="spin" size={18} /> : <Plus size={18} />}
+                Anlegen
               </button>
             </footer>
           </section>
@@ -622,6 +785,14 @@ function TravelerBadges({ travelers }: { travelers: string[] }) {
   );
 }
 
+function TripChip({ trip }: { trip: NonNullable<CalendarBooking["trip"]> }) {
+  return (
+    <span className="tripChip" style={{ borderColor: trip.color, color: trip.color }}>
+      {trip.shortCode}
+    </span>
+  );
+}
+
 function GapBar({ previousDate, nextDate }: { previousDate: string; nextDate: string }) {
   const emptyDays = daysBetween(previousDate, nextDate) - 1;
 
@@ -855,6 +1026,26 @@ function formatProcessedAt(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function formatShortDate(value: string): string {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  }).format(date);
+}
+
+function tripCreateMessage(reason: string): string {
+  const messages: Record<string, string> = {
+    missing_short_code: "Bitte gib ein Trip-Kürzel ein.",
+    missing_owner: "Bitte gib einen Owner ein.",
+    invalid_dates: "Bitte gib einen gültigen Zeitraum ein.",
+    duplicate_short_code: "Dieses Trip-Kürzel gibt es bereits.",
+  };
+  return messages[reason] ?? "Trip konnte nicht angelegt werden.";
 }
 
 function withBatchSeparators(entries: ActivityLogEntry[]): ActivityLogTableRow[] {

@@ -19,6 +19,8 @@ body {
 }
 
 button,
+input,
+select,
 textarea {
   font: inherit;
 }
@@ -118,8 +120,80 @@ h1 {
   margin-bottom: 16px;
 }
 
+.calendarLayout {
+  display: grid;
+  grid-template-columns: 158px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
 .calendarSurface {
+  min-width: 0;
+  padding-left: 18px;
+  border-left: 1px solid #d7dedb;
   border-top: 1px solid #d7dedb;
+}
+
+.tripSidebar {
+  position: sticky;
+  top: 18px;
+  border-top: 1px solid #d7dedb;
+  padding-top: 12px;
+}
+
+.tripSidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #40504d;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.tripAddButton {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #18201f;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #18201f;
+  cursor: pointer;
+}
+
+.tripList {
+  display: grid;
+  gap: 8px;
+}
+
+.tripEmpty {
+  color: #71817d;
+  font-size: 0.82rem;
+}
+
+.tripListItem {
+  padding: 7px 8px 7px 9px;
+  border-left: 4px solid #71817d;
+  background: #ffffff;
+}
+
+.tripListTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #18201f;
+  font-size: 0.86rem;
+}
+
+.tripListDates {
+  margin-top: 3px;
+  color: #71817d;
+  font-size: 0.72rem;
 }
 
 .logLinkWrap {
@@ -251,8 +325,8 @@ h1 {
 
 .dayGroup {
   display: grid;
-  grid-template-columns: 190px 1fr;
-  gap: 22px;
+  grid-template-columns: 150px 1fr;
+  gap: 18px;
   padding: 22px 0 22px;
 }
 
@@ -295,7 +369,7 @@ h1 {
 .bookingCompactRow {
   min-width: 0;
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto auto 34px 34px;
+  grid-template-columns: 38px minmax(0, 1fr) auto auto auto 34px 34px;
   gap: 12px;
   align-items: center;
 }
@@ -358,6 +432,25 @@ h1 {
   place-items: center;
   border-radius: 999px;
   font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.tripOwnerBadge {
+  width: 26px;
+  height: 26px;
+  font-size: 0.66rem;
+}
+
+.tripChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 0.76rem;
   font-weight: 800;
 }
 
@@ -428,12 +521,35 @@ h1 {
   line-height: 1.45;
 }
 
+.tripAssignControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: #40504d;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.tripAssignControl select {
+  min-height: 32px;
+  border: 1px solid #cfd8d5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #18201f;
+}
+
 .documentLink {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
   margin-top: 10px;
   color: #2563a9;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.45;
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .documentLink:hover {
@@ -455,6 +571,10 @@ h1 {
   background: rgba(24, 32, 31, 0.38);
 }
 
+.dialogBackdrop.blur {
+  backdrop-filter: blur(5px);
+}
+
 .dialog {
   width: min(760px, 100%);
   max-height: min(760px, calc(100vh - 40px));
@@ -464,6 +584,39 @@ h1 {
   border-radius: 8px;
   border: 1px solid #d7dedb;
   box-shadow: 0 18px 60px rgba(24, 32, 31, 0.22);
+}
+
+.tripDialog {
+  width: min(560px, 100%);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.tripForm {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.tripForm label {
+  display: grid;
+  gap: 6px;
+  color: #40504d;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.tripForm input {
+  min-height: 40px;
+  border: 1px solid #cfd8d5;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #18201f;
+}
+
+.tripDateRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 .dialogHeader,
@@ -654,6 +807,23 @@ textarea {
     justify-content: flex-end;
   }
 
+  .calendarLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .calendarSurface {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .tripSidebar {
+    position: static;
+  }
+
+  .tripList {
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  }
+
   .dayGroup {
     grid-template-columns: 1fr;
     gap: 10px;
@@ -668,7 +838,7 @@ textarea {
   }
 
   .bookingCompactRow {
-    grid-template-columns: 38px minmax(0, 1fr) auto 34px 34px;
+    grid-template-columns: 38px minmax(0, 1fr) auto auto 34px 34px;
   }
 
   .bookingCompactRow .statusPill {
