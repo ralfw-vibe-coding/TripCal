@@ -6,7 +6,7 @@ import { TravelerResolver } from "../../../providers/travelers/TravelerResolver"
 import { GetBookingCalendarQuery } from "../get-booking-calendar-query/GetBookingCalendarQuery";
 import { RecordExtractedBookingsCommand } from "../record-extracted-bookings-command/RecordExtractedBookingsCommand";
 import { SubmitDocumentTextCommand } from "../submit-document-text-command/SubmitDocumentTextCommand";
-import { CorrectBookingCommand } from "./CorrectBookingCommand";
+import { ChangeBookingStatusCommand } from "./ChangeBookingStatusCommand";
 
 class FixedClock implements Clock {
   now(): Date {
@@ -24,11 +24,11 @@ class FixedIds implements IdGenerator {
   }
 }
 
-describe("CorrectBookingCommand", () => {
-  it("records a patch and the calendar applies the correction", async () => {
+describe("ChangeBookingStatusCommand", () => {
+  it("records a status change and the calendar shows the latest status", async () => {
     const eventStore = new MemoryEventStore();
-    const ids = new FixedIds(["text-1", "booking-1", "correction-1", "status-1"]);
-    const travelerResolver = new TravelerResolver({ RW: ["Ralf"], AK: ["Andrea"] });
+    const ids = new FixedIds(["text-1", "booking-1", "status-1"]);
+    const travelerResolver = new TravelerResolver({});
     const submitted = await new SubmitDocumentTextCommand(eventStore, ids).process({
       source: "text",
       text: "Travel document",
@@ -41,37 +41,23 @@ describe("CorrectBookingCommand", () => {
       extractedAt: "2026-04-30T09:01:00.000Z",
       bookings: [
         {
-          title: "Old title",
+          title: "Flight",
           type: "flight",
-          serviceIdentifier: "AB123",
-          operator: "Old operator",
           start: { value: "2026-06-12T10:00", precision: "datetime" },
-          travelers: ["Ralf"],
-          details: "Old details",
+          travelers: [],
+          details: "Flight",
         },
       ],
     });
 
-    const corrected = await new CorrectBookingCommand(eventStore, ids, new FixedClock()).process({
+    const changed = await new ChangeBookingStatusCommand(eventStore, ids, new FixedClock()).process({
       bookingExtractedId: "booking-1",
-      patch: {
-        title: "New title",
-        serviceIdentifier: null,
-        travelers: ["AK"],
-        details: "New details",
-      },
-    });
-
-    expect(corrected).toEqual({ status: "succeeded", bookingCorrectedId: "correction-1" });
-
-    const calendar = await new GetBookingCalendarQuery(eventStore, travelerResolver).process({});
-    expect(calendar.bookings[0]).toMatchObject({
-      title: "New title",
-      serviceIdentifier: undefined,
-      travelers: ["AK"],
-      details: "New details",
       status: "reviewed",
     });
-    expect(calendar.bookings[0].operator).toBe("Old operator");
+
+    expect(changed).toEqual({ status: "succeeded", bookingStatusChangedId: "status-1" });
+
+    const calendar = await new GetBookingCalendarQuery(eventStore, travelerResolver).process({});
+    expect(calendar.bookings[0].status).toBe("reviewed");
   });
 });

@@ -5,6 +5,7 @@ import {
   bookingAssignedToTripV1,
   bookingCorrectedV1,
   bookingExtractedFromDocumentTextV1,
+  bookingStatusChangedV1,
   documentFileUploadedV1,
   documentTextRecordedV1,
   emailIngestedV1,
@@ -85,7 +86,7 @@ export type BookingExtractedFromDocumentTextV1Payload = {
   type: BookingType;
   serviceIdentifier?: string;
   operator?: string;
-  status: Extract<BookingStatus, "needs_review">;
+  status: Extract<BookingStatus, "inbox">;
   start: BookingDateTime;
   end?: BookingDateTime;
   from?: BookingPlace;
@@ -153,6 +154,18 @@ export type BookingCorrectedV1 = Event & {
   payload: BookingCorrectedV1Payload;
 };
 
+export type BookingStatusChangedV1Payload = {
+  id: string;
+  bookingExtractedId: string;
+  status: BookingStatus;
+  changedAt: string;
+};
+
+export type BookingStatusChangedV1 = Event & {
+  eventType: typeof bookingStatusChangedV1;
+  payload: BookingStatusChangedV1Payload;
+};
+
 export type TripCalEvent =
   | DocumentTextRecordedV1
   | DocumentFileUploadedV1
@@ -161,7 +174,8 @@ export type TripCalEvent =
   | BookingDeletedV1
   | TripCreatedV1
   | BookingAssignedToTripV1
-  | BookingCorrectedV1;
+  | BookingCorrectedV1
+  | BookingStatusChangedV1;
 
 export function isDocumentTextRecordedV1(event: Event): event is DocumentTextRecordedV1 {
   return event.eventType === documentTextRecordedV1;
@@ -195,4 +209,8 @@ export function isBookingAssignedToTripV1(event: Event): event is BookingAssigne
 
 export function isBookingCorrectedV1(event: Event): event is BookingCorrectedV1 {
   return event.eventType === bookingCorrectedV1;
+}
+
+export function isBookingStatusChangedV1(event: Event): event is BookingStatusChangedV1 {
+  return event.eventType === bookingStatusChangedV1;
 }

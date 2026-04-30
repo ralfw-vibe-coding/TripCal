@@ -51,7 +51,7 @@ export class RecordExtractedBookingsCommand {
           type: booking.type,
           serviceIdentifier: booking.serviceIdentifier,
           operator: booking.operator,
-          status: "needs_review",
+          status: "inbox",
           start: booking.start,
           end: booking.end,
           from: booking.from,

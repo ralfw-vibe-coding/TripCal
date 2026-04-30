@@ -5,6 +5,11 @@ import type {
 } from "./slices/assign-booking-to-trip/AssignBookingToTrip";
 import type { CreateTrip, CreateTripRequest, CreateTripResponse } from "./slices/create-trip/CreateTrip";
 import type { CorrectBooking, CorrectBookingRequest, CorrectBookingResponse } from "./slices/correct-booking/CorrectBooking";
+import type {
+  ChangeBookingStatus,
+  ChangeBookingStatusRequest,
+  ChangeBookingStatusResponse,
+} from "./slices/change-booking-status/ChangeBookingStatus";
 import type { DeleteBooking, DeleteBookingRequest, DeleteBookingResponse } from "./slices/delete-booking/DeleteBooking";
 import type { IngestEmail, IngestEmailRequest, IngestEmailResponse } from "./slices/ingest-email/IngestEmail";
 import type {
@@ -38,6 +43,7 @@ export class Processor {
     private readonly createTripSlice: CreateTrip,
     private readonly assignBookingToTripSlice: AssignBookingToTrip,
     private readonly correctBookingSlice: CorrectBooking,
+    private readonly changeBookingStatusSlice: ChangeBookingStatus,
     private readonly deleteBookingSlice: DeleteBooking,
     private readonly viewTripsSlice: ViewTrips,
     private readonly viewBookingCalendarSlice: ViewBookingCalendar,
@@ -69,6 +75,10 @@ export class Processor {
 
   correctBooking(request: CorrectBookingRequest): Promise<CorrectBookingResponse> {
     return this.correctBookingSlice.process(request);
+  }
+
+  changeBookingStatus(request: ChangeBookingStatusRequest): Promise<ChangeBookingStatusResponse> {
+    return this.changeBookingStatusSlice.process(request);
   }
 
   deleteBooking(request: DeleteBookingRequest): Promise<DeleteBookingResponse> {

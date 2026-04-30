@@ -5,6 +5,7 @@ import type {
   BookingAssignedToTripV1Payload,
   BookingCorrectedV1Payload,
   BookingDeletedV1Payload,
+  BookingStatusChangedV1Payload,
   DocumentFileUploadedV1Payload,
   DocumentTextRecordedV1Payload,
   TripCreatedV1Payload,
@@ -14,12 +15,13 @@ import {
   bookingCorrectedV1,
   bookingDeletedV1,
   bookingExtractedFromDocumentTextV1,
+  bookingStatusChangedV1,
   documentFileUploadedV1,
   documentTextRecordedV1,
   tripCreatedV1,
 } from "../../events/eventTypes";
 import type { CalendarBooking } from "../../model";
-import type { BookingCorrectionPatch } from "../../model";
+import type { BookingCorrectionPatch, BookingStatus } from "../../model";
 import type { TravelerResolver } from "../../../providers/travelers/TravelerResolver";
 
 export type GetBookingCalendarQueryRequest = Record<string, never>;
@@ -44,6 +46,7 @@ export class GetBookingCalendarQuery {
         tripCreatedV1,
         bookingAssignedToTripV1,
         bookingCorrectedV1,
+        bookingStatusChangedV1,
       ]),
     );
     const documentTexts = mapDocumentTexts(result.events);
@@ -51,12 +54,13 @@ export class GetBookingCalendarQuery {
     const trips = mapTrips(result.events);
     const assignedTrips = mapAssignedTrips(result.events);
     const corrections = mapBookingCorrections(result.events);
+    const statuses = mapBookingStatuses(result.events);
     const deletedBookingIds = mapDeletedBookingIds(result.events);
     const bookings = result.events
       .filter((event) => event.eventType === bookingExtractedFromDocumentTextV1)
       .filter((event) => !deletedBookingIds.has(String(event.payload.id)))
       .map((event) =>
-        toCalendarBooking(event, documentTexts, documentFiles, trips, assignedTrips, corrections, this.travelerResolver),
+        toCalendarBooking(event, documentTexts, documentFiles, trips, assignedTrips, corrections, statuses, this.travelerResolver),
       )
       .sort(compareCalendarBookings);
 
@@ -82,6 +86,7 @@ function toCalendarBooking(
   trips: Map<string, TripCreatedV1Payload>,
   assignedTrips: Map<string, string>,
   corrections: Map<string, BookingCorrectionPatch[]>,
+  statuses: Map<string, BookingStatus>,
   travelerResolver: TravelerResolver,
 ): CalendarBooking {
   const payload = event.payload as BookingExtractedFromDocumentTextV1Payload;
@@ -105,7 +110,7 @@ function toCalendarBooking(
     type: corrected.type,
     serviceIdentifier: corrected.serviceIdentifier,
     operator: corrected.operator,
-    status: corrected.status,
+    status: statuses.get(payload.id) ?? corrected.status,
     start: corrected.start,
     end: corrected.end,
     from: corrected.from,
@@ -135,7 +140,6 @@ function applyCorrections(
     if (patch.type !== undefined) corrected.type = patch.type;
     if (patch.serviceIdentifier !== undefined) corrected.serviceIdentifier = patch.serviceIdentifier ?? undefined;
     if (patch.operator !== undefined) corrected.operator = patch.operator ?? undefined;
-    if (patch.status !== undefined) corrected.status = patch.status as BookingExtractedFromDocumentTextV1Payload["status"];
     if (patch.start !== undefined) corrected.start = patch.start;
     if (patch.end !== undefined) corrected.end = patch.end ?? undefined;
     if (patch.from !== undefined) corrected.from = patch.from ?? undefined;
@@ -144,6 +148,17 @@ function applyCorrections(
     if (patch.details !== undefined) corrected.details = patch.details;
   }
   return corrected;
+}
+
+function mapBookingStatuses(events: EventRecord[]): Map<string, BookingStatus> {
+  const statuses = new Map<string, BookingStatus>();
+  for (const event of events) {
+    if (event.eventType === bookingStatusChangedV1) {
+      const payload = event.payload as BookingStatusChangedV1Payload;
+      statuses.set(payload.bookingExtractedId, payload.status);
+    }
+  }
+  return statuses;
 }
 
 function mapDocumentTexts(events: EventRecord[]): Map<string, DocumentTextRecordedV1Payload> {

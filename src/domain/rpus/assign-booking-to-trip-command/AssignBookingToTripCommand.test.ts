@@ -28,7 +28,7 @@ describe("AssignBookingToTripCommand", () => {
           documentTextRecordedId: "text-1",
           title: "Flight",
           type: "flight",
-          status: "needs_review",
+          status: "inbox",
           start: { value: "2026-04-07", precision: "date" },
           travelers: [],
           details: "Flight",

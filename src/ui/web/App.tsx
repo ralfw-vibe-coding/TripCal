@@ -39,6 +39,7 @@ import type {
 import type { ActivityLogEntry } from "../../providers/activity-log/ActivityLogProvider";
 import {
   assignBookingToTrip,
+  changeBookingStatus,
   correctBooking,
   createTrip,
   deleteBooking,
@@ -75,7 +76,6 @@ type BookingEditForm = {
   type: BookingType;
   serviceIdentifier: string;
   operator: string;
-  status: BookingStatus;
   startValue: string;
   startTimezone: string;
   endValue: string;
@@ -225,6 +225,15 @@ export function App() {
     await loadCalendar();
   }
 
+  async function handleChangeBookingStatus(bookingExtractedId: string, status: BookingStatus) {
+    const response = await changeBookingStatus(bookingExtractedId, status);
+    if (response.status === "rejected") {
+      setMessage(response.message);
+      return;
+    }
+    await loadCalendar();
+  }
+
   function openBookingEditor(booking: CalendarBooking) {
     setEditingBooking(booking);
     setBookingEditForm(toBookingEditForm(booking));
@@ -356,7 +365,7 @@ export function App() {
                       </div>
                       {booking.travelers.length > 0 ? <TravelerBadges travelers={booking.travelers} /> : null}
                       {booking.trip ? <TripChip trip={booking.trip} /> : null}
-                      <span className="statusPill">{booking.status === "needs_review" ? "Review" : booking.status}</span>
+                      {booking.status === "inbox" ? <span className="statusPill">Inbox</span> : null}
                       <button
                         className="editButton"
                         type="button"
@@ -413,20 +422,34 @@ export function App() {
                             Originaldokument: {booking.sourceDocument.originalFileName}
                           </a>
                         ) : null}
-                        <label className="tripAssignControl">
-                          <span>Trip</span>
-                          <select
-                            value={booking.trip?.tripCreatedId ?? ""}
-                            onChange={(event) => void handleAssignTrip(booking.bookingExtractedId, event.target.value)}
-                          >
-                            <option value="">Nicht zugeordnet</option>
-                            {trips.map((trip) => (
-                              <option value={trip.tripCreatedId} key={trip.tripCreatedId}>
-                                {trip.shortCode}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        <div className="bookingExpandedControls">
+                          <label className="tripAssignControl">
+                            <span>Trip</span>
+                            <select
+                              value={booking.trip?.tripCreatedId ?? ""}
+                              onChange={(event) => void handleAssignTrip(booking.bookingExtractedId, event.target.value)}
+                            >
+                              <option value="">Nicht zugeordnet</option>
+                              {trips.map((trip) => (
+                                <option value={trip.tripCreatedId} key={trip.tripCreatedId}>
+                                  {trip.shortCode}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="tripAssignControl">
+                            <span>Status</span>
+                            <select
+                              value={booking.status}
+                              onChange={(event) =>
+                                void handleChangeBookingStatus(booking.bookingExtractedId, event.target.value as BookingStatus)
+                              }
+                            >
+                              <option value="inbox">Inbox</option>
+                              <option value="reviewed">Reviewed</option>
+                            </select>
+                          </label>
+                        </div>
                         <div className="processedAt">Verarbeitet: {formatProcessedAt(booking.processedAt)}</div>
                       </div>
                     ) : null}
@@ -663,21 +686,6 @@ export function App() {
                   {bookingTypeOptions.map((type) => (
                     <option value={type} key={type}>
                       {bookingTypeLabel(type)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Status</span>
-                <select
-                  value={bookingEditForm.status}
-                  onChange={(event) =>
-                    setBookingEditForm((form) => form && { ...form, status: event.target.value as BookingStatus })
-                  }
-                >
-                  {bookingStatusOptions.map((status) => (
-                    <option value={status} key={status}>
-                      {status}
                     </option>
                   ))}
                 </select>
@@ -1283,8 +1291,6 @@ const bookingTypeOptions: BookingType[] = [
   "other",
 ];
 
-const bookingStatusOptions: BookingStatus[] = ["needs_review", "planned", "cancelled"];
-
 const timezoneOptions = [
   { value: "", label: "Keine Zeitzone" },
   ...Array.from({ length: 25 }, (_, index) => index - 12).map((offset) => ({
@@ -1299,7 +1305,6 @@ function toBookingEditForm(booking: CalendarBooking): BookingEditForm {
     type: booking.type,
     serviceIdentifier: booking.serviceIdentifier ?? "",
     operator: booking.operator ?? "",
-    status: booking.status,
     startValue: toDateTimeInputValue(booking.start),
     startTimezone: toOffsetTimezoneValue(booking.start.timezone),
     endValue: booking.end ? toDateTimeInputValue(booking.end) : "",
@@ -1321,8 +1326,6 @@ function buildBookingCorrectionPatch(booking: CalendarBooking, form: BookingEdit
   if (normalizeOptionalText(form.operator) !== (booking.operator ?? undefined)) {
     patch.operator = normalizeOptionalText(form.operator) ?? null;
   }
-  if (form.status !== booking.status) patch.status = form.status;
-
   const start = toBookingDateTime(form.startValue, form.startTimezone);
   if (!sameJson(start, booking.start)) patch.start = start;
 

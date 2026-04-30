@@ -6,6 +6,7 @@ import { dirname } from "node:path";
 import { Processor } from "../behavior/Processor";
 import { RecordDocumentTextAndExtractBookings } from "../behavior/flows/RecordDocumentTextAndExtractBookings";
 import { AssignBookingToTrip } from "../behavior/slices/assign-booking-to-trip/AssignBookingToTrip";
+import { ChangeBookingStatus } from "../behavior/slices/change-booking-status/ChangeBookingStatus";
 import { CorrectBooking } from "../behavior/slices/correct-booking/CorrectBooking";
 import { CreateTrip } from "../behavior/slices/create-trip/CreateTrip";
 import { DeleteBooking } from "../behavior/slices/delete-booking/DeleteBooking";
@@ -16,6 +17,7 @@ import { SubmitDocumentText } from "../behavior/slices/submit-document-text/Subm
 import { ViewBookingCalendar } from "../behavior/slices/view-booking-calendar/ViewBookingCalendar";
 import { ViewTrips } from "../behavior/slices/view-trips/ViewTrips";
 import { AssignBookingToTripCommand } from "../domain/rpus/assign-booking-to-trip-command/AssignBookingToTripCommand";
+import { ChangeBookingStatusCommand } from "../domain/rpus/change-booking-status-command/ChangeBookingStatusCommand";
 import { CorrectBookingCommand } from "../domain/rpus/correct-booking-command/CorrectBookingCommand";
 import { CreateTripCommand } from "../domain/rpus/create-trip-command/CreateTripCommand";
 import { DeleteBookingCommand } from "../domain/rpus/delete-booking-command/DeleteBookingCommand";
@@ -61,6 +63,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   const createTripCommand = new CreateTripCommand(store, idGenerator, clock, readInitialTripNumber());
   const assignBookingToTripCommand = new AssignBookingToTripCommand(store, idGenerator, clock);
   const correctBookingCommand = new CorrectBookingCommand(store, idGenerator, clock);
+  const changeBookingStatusCommand = new ChangeBookingStatusCommand(store, idGenerator, clock);
   const recordEmailIngestedCommand = new RecordEmailIngestedCommand(store, idGenerator);
   const recordDocumentFileUploadedCommand = new RecordDocumentFileUploadedCommand(store, idGenerator);
   const recordExtractedBookingsCommand = new RecordExtractedBookingsCommand(store, idGenerator, travelerResolver);
@@ -80,6 +83,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   const createTrip = new CreateTrip(createTripCommand);
   const assignBookingToTrip = new AssignBookingToTrip(assignBookingToTripCommand);
   const correctBooking = new CorrectBooking(correctBookingCommand);
+  const changeBookingStatus = new ChangeBookingStatus(changeBookingStatusCommand);
   const ingestEmail = new IngestEmail(
     clock,
     fileStorageProvider,
@@ -111,6 +115,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
       createTrip,
       assignBookingToTrip,
       correctBooking,
+      changeBookingStatus,
       deleteBooking,
       viewTrips,
       viewBookingCalendar,

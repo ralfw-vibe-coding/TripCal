@@ -2,48 +2,48 @@ import { createFilter } from "@ricofritzsche/eventstore";
 import type { EventStore } from "@ricofritzsche/eventstore";
 import type { Clock } from "../../../providers/clock/Clock";
 import type { IdGenerator } from "../../../providers/ids/IdGenerator";
-import type { BookingCorrectedV1, BookingStatusChangedV1 } from "../../events/events";
+import type { BookingStatusChangedV1 } from "../../events/events";
 import {
-  bookingCorrectedV1,
   bookingDeletedV1,
   bookingExtractedFromDocumentTextV1,
   bookingStatusChangedV1,
 } from "../../events/eventTypes";
-import type { BookingCorrectionPatch } from "../../model";
+import type { BookingStatus } from "../../model";
 
-export type CorrectBookingCommandRequest = {
+export type ChangeBookingStatusCommandRequest = {
   bookingExtractedId: string;
-  patch: BookingCorrectionPatch;
+  status: BookingStatus;
 };
 
-export type CorrectBookingCommandResponse =
+export type ChangeBookingStatusCommandResponse =
   | {
       status: "succeeded";
-      bookingCorrectedId: string;
+      bookingStatusChangedId: string;
     }
   | {
       status: "failed";
-      reason: "missing_booking" | "empty_patch" | "booking_not_found" | "already_deleted";
+      reason: "missing_booking" | "invalid_status" | "booking_not_found" | "already_deleted";
     };
 
-export class CorrectBookingCommand {
+export class ChangeBookingStatusCommand {
   constructor(
     private readonly eventStore: EventStore,
     private readonly idGenerator: IdGenerator,
     private readonly clock: Clock,
   ) {}
 
-  async process(request: CorrectBookingCommandRequest): Promise<CorrectBookingCommandResponse> {
+  async process(request: ChangeBookingStatusCommandRequest): Promise<ChangeBookingStatusCommandResponse> {
     const bookingExtractedId = request.bookingExtractedId.trim();
     if (!bookingExtractedId) return { status: "failed", reason: "missing_booking" };
-    if (Object.keys(request.patch).length === 0) return { status: "failed", reason: "empty_patch" };
+    if (request.status !== "inbox" && request.status !== "reviewed") {
+      return { status: "failed", reason: "invalid_status" };
+    }
 
-    const contextFilter = createFilter([bookingExtractedFromDocumentTextV1, bookingDeletedV1, bookingCorrectedV1], [
+    const contextFilter = createFilter([bookingExtractedFromDocumentTextV1, bookingDeletedV1, bookingStatusChangedV1], [
       { id: bookingExtractedId },
       { bookingExtractedId },
     ]);
     const context = await this.eventStore.query(contextFilter);
-
     const bookingExists = context.events.some(
       (event) => event.eventType === bookingExtractedFromDocumentTextV1 && event.payload.id === bookingExtractedId,
     );
@@ -54,30 +54,17 @@ export class CorrectBookingCommand {
     );
     if (alreadyDeleted) return { status: "failed", reason: "already_deleted" };
 
-    const correctionEvent: BookingCorrectedV1 = {
-      eventType: bookingCorrectedV1,
-      payload: {
-        id: this.idGenerator.newId(),
-        bookingExtractedId,
-        correctedAt: this.clock.now().toISOString(),
-        patch: request.patch,
-      },
-    };
-    const statusEvent: BookingStatusChangedV1 = {
+    const event: BookingStatusChangedV1 = {
       eventType: bookingStatusChangedV1,
       payload: {
         id: this.idGenerator.newId(),
         bookingExtractedId,
-        status: "reviewed",
+        status: request.status,
         changedAt: this.clock.now().toISOString(),
       },
     };
 
-    await this.eventStore.append([correctionEvent, statusEvent], contextFilter, context.maxSequenceNumber);
-
-    return {
-      status: "succeeded",
-      bookingCorrectedId: correctionEvent.payload.id,
-    };
+    await this.eventStore.append([event], contextFilter, context.maxSequenceNumber);
+    return { status: "succeeded", bookingStatusChangedId: event.payload.id };
   }
 }

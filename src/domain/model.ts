@@ -10,7 +10,7 @@ export type BookingType =
   | "activity"
   | "other";
 
-export type BookingStatus = "needs_review" | "planned" | "cancelled";
+export type BookingStatus = "inbox" | "reviewed";
 
 export type BookingDateTime = {
   value: string;
@@ -42,7 +42,6 @@ export type BookingCorrectionPatch = {
   type?: BookingType;
   serviceIdentifier?: string | null;
   operator?: string | null;
-  status?: BookingStatus;
   start?: BookingDateTime;
   end?: BookingDateTime | null;
   from?: BookingPlace | null;

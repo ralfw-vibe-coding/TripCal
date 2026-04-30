@@ -7,10 +7,11 @@ import type {
 import type { ViewBookingCalendarResponse } from "../../behavior/slices/view-booking-calendar/ViewBookingCalendar";
 import type { DeleteBookingResponse } from "../../behavior/slices/delete-booking/DeleteBooking";
 import type { AssignBookingToTripResponse } from "../../behavior/slices/assign-booking-to-trip/AssignBookingToTrip";
+import type { ChangeBookingStatusResponse } from "../../behavior/slices/change-booking-status/ChangeBookingStatus";
 import type { CorrectBookingResponse } from "../../behavior/slices/correct-booking/CorrectBooking";
 import type { CreateTripResponse } from "../../behavior/slices/create-trip/CreateTrip";
 import type { ViewTripsResponse } from "../../behavior/slices/view-trips/ViewTrips";
-import type { BookingCorrectionPatch } from "../../domain/model";
+import type { BookingCorrectionPatch, BookingStatus } from "../../domain/model";
 import type { ActivityLogEntry } from "../../providers/activity-log/ActivityLogProvider";
 
 export async function viewBookingCalendar(): Promise<ViewBookingCalendarResponse> {
@@ -85,6 +86,22 @@ export async function correctBooking(
   const body = (await response.json()) as CorrectBookingResponse;
   if (!response.ok && body.status !== "rejected") {
     throw new Error("Buchung konnte nicht korrigiert werden.");
+  }
+  return body;
+}
+
+export async function changeBookingStatus(
+  bookingExtractedId: string,
+  status: BookingStatus,
+): Promise<ChangeBookingStatusResponse> {
+  const response = await fetch("/api/change-booking-status", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ bookingExtractedId, status }),
+  });
+  const body = (await response.json()) as ChangeBookingStatusResponse;
+  if (!response.ok && body.status !== "rejected") {
+    throw new Error("Status konnte nicht geändert werden.");
   }
   return body;
 }
