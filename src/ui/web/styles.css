@@ -120,6 +120,13 @@ h1 {
   margin-bottom: 16px;
 }
 
+.formError {
+  margin-top: 7px;
+  color: #8e2739;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
 .calendarLayout {
   display: grid;
   grid-template-columns: 158px minmax(0, 1fr);
@@ -678,6 +685,12 @@ h1 {
   padding: 0 10px;
   background: #ffffff;
   color: #18201f;
+}
+
+.tripForm input::placeholder {
+  color: #94a09c;
+  opacity: 1;
+  font-weight: 400;
 }
 
 .tripDateRow {

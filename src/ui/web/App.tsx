@@ -115,6 +115,7 @@ export function App() {
     endDate: "",
   });
   const [message, setMessage] = useState<string | undefined>();
+  const [formError, setFormError] = useState<string | undefined>();
   const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(() => new Set());
   const [pendingDeleteBookingId, setPendingDeleteBookingId] = useState<string | undefined>();
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -143,8 +144,15 @@ export function App() {
   }, [showSubmit, pastedImage, submitTab]);
 
   async function handleSubmit() {
+    const validationMessage = validateSubmitDialog({ pendingFiles, pastedImage, text, submitTab });
+    if (validationMessage) {
+      setFormError(validationMessage);
+      return;
+    }
+
     setIsSubmitting(true);
     setMessage(undefined);
+    setFormError(undefined);
     try {
       const response =
         pendingFiles.length > 0
@@ -158,10 +166,10 @@ export function App() {
         setShowSubmit(false);
         await loadCalendar();
       } else {
-        setMessage(response.message);
+        setFormError(response.message);
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unerwarteter Fehler.");
+      setFormError(error instanceof Error ? error.message : "Unerwarteter Fehler.");
     } finally {
       setIsSubmitting(false);
     }
@@ -189,13 +197,21 @@ export function App() {
   }
 
   function openTripDialog() {
-    setTripForm({ shortCode: "", title: "", owner: travelerLabels[0] ?? "", startDate: "", endDate: "" });
+    setTripForm({ shortCode: "", title: "", owner: "", startDate: "", endDate: "" });
+    setFormError(undefined);
     setShowTripDialog(true);
   }
 
   async function handleCreateTrip() {
+    const validationMessage = validateTripForm(tripForm);
+    if (validationMessage) {
+      setFormError(validationMessage);
+      return;
+    }
+
     setIsCreatingTrip(true);
     setMessage(undefined);
+    setFormError(undefined);
     try {
       const response = await createTrip({
         shortCode: tripForm.shortCode,
@@ -205,7 +221,7 @@ export function App() {
         endDate: tripForm.endDate,
       });
       if (response.status === "failed") {
-        setMessage(tripCreateMessage(response.reason));
+        setFormError(tripCreateMessage(response.reason));
         return;
       }
       setShowTripDialog(false);
@@ -237,18 +253,26 @@ export function App() {
   function openBookingEditor(booking: CalendarBooking) {
     setEditingBooking(booking);
     setBookingEditForm(toBookingEditForm(booking));
+    setFormError(undefined);
     setMessage(undefined);
   }
 
   async function handleCorrectBooking() {
     if (!editingBooking || !bookingEditForm) return;
+    const validationMessage = validateBookingEditForm(bookingEditForm);
+    if (validationMessage) {
+      setFormError(validationMessage);
+      return;
+    }
+
     setIsCorrectingBooking(true);
     setMessage(undefined);
+    setFormError(undefined);
     try {
       const patch = buildBookingCorrectionPatch(editingBooking, bookingEditForm);
       const response = await correctBooking(editingBooking.bookingExtractedId, patch);
       if (response.status === "rejected") {
-        setMessage(response.message);
+        setFormError(response.message);
         return;
       }
       setEditingBooking(undefined);
@@ -556,13 +580,16 @@ export function App() {
             )}
 
             <footer className="dialogFooter">
-              <div className="hint">
-                {hintIcon()}
-                {pastedImage
-                  ? "Das Bild wird nur zur Texterkennung verwendet und nicht gespeichert."
-                  : submitTab === "files"
-                    ? "Dateien werden lokal gespeichert; PDF- und Bilddateien können per KI ausgelesen werden."
-                    : "Text direkt erfassen, einfügen oder mehrere Buchungen mit --- trennen."}
+              <div>
+                <div className="hint">
+                  {hintIcon()}
+                  {pastedImage
+                    ? "Das Bild wird nur zur Texterkennung verwendet und nicht gespeichert."
+                    : submitTab === "files"
+                      ? "Dateien werden lokal gespeichert; PDF- und Bilddateien können per KI ausgelesen werden."
+                      : "Text direkt erfassen, einfügen oder mehrere Buchungen mit --- trennen."}
+                </div>
+                {formError ? <div className="formError">{formError}</div> : null}
               </div>
               <button className="primaryButton" type="button" onClick={handleSubmit} disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
@@ -589,6 +616,7 @@ export function App() {
               <label>
                 <span>Kürzel *</span>
                 <input
+                  required
                   value={tripForm.shortCode}
                   onChange={(event) => setTripForm((form) => ({ ...form, shortCode: event.target.value }))}
                   placeholder="Kürzel"
@@ -605,10 +633,13 @@ export function App() {
               <label>
                 <span>Owner *</span>
                 <select
+                  required
                   value={tripForm.owner}
                   onChange={(event) => setTripForm((form) => ({ ...form, owner: event.target.value }))}
                 >
-                  {travelerLabels.length === 0 ? <option value="">Keine Traveller konfiguriert</option> : null}
+                  <option value="" disabled>
+                    {travelerLabels.length === 0 ? "Keine Traveller konfiguriert" : "Owner auswählen"}
+                  </option>
                   {travelerLabels.map((label) => (
                     <option value={label} key={label}>
                       {label}
@@ -620,6 +651,7 @@ export function App() {
                 <label>
                   <span>Von *</span>
                   <input
+                    required
                     type="date"
                     value={tripForm.startDate}
                     onChange={(event) => setTripForm((form) => ({ ...form, startDate: event.target.value }))}
@@ -628,6 +660,7 @@ export function App() {
                 <label>
                   <span>Bis *</span>
                   <input
+                    required
                     type="date"
                     value={tripForm.endDate}
                     onChange={(event) => setTripForm((form) => ({ ...form, endDate: event.target.value }))}
@@ -636,7 +669,10 @@ export function App() {
               </div>
             </div>
             <footer className="dialogFooter">
-              <div className="hint">Tripnummer und Farbe werden automatisch vergeben.</div>
+              <div>
+                <div className="hint">Tripnummer und Farbe werden automatisch vergeben.</div>
+                {formError ? <div className="formError">{formError}</div> : null}
+              </div>
               <button className="primaryButton" type="button" onClick={handleCreateTrip} disabled={isCreatingTrip}>
                 {isCreatingTrip ? <Loader2 className="spin" size={18} /> : <Plus size={18} />}
                 Anlegen
@@ -671,6 +707,7 @@ export function App() {
               <label className="fullSpan">
                 <span>Titel</span>
                 <input
+                  required
                   value={bookingEditForm.title}
                   onChange={(event) => setBookingEditForm((form) => form && { ...form, title: event.target.value })}
                 />
@@ -727,6 +764,7 @@ export function App() {
                 <fieldset>
                   <legend>Start</legend>
                   <input
+                    required
                     type="datetime-local"
                     value={bookingEditForm.startValue}
                     onChange={(event) => setBookingEditForm((form) => form && { ...form, startValue: event.target.value })}
@@ -843,7 +881,10 @@ export function App() {
             </div>
 
             <footer className="dialogFooter bookingEditFooter">
-              <div className="hint">Gespeichert werden nur geänderte Felder.</div>
+              <div>
+                <div className="hint">Gespeichert werden nur geänderte Felder.</div>
+                {formError ? <div className="formError">{formError}</div> : null}
+              </div>
               <button className="primaryButton" type="button" onClick={handleCorrectBooking} disabled={isCorrectingBooking}>
                 {isCorrectingBooking ? <Loader2 className="spin" size={18} /> : <Pencil size={18} />}
                 Speichern
@@ -861,6 +902,7 @@ export function App() {
     setPendingFiles([]);
     setSubmitTab("files");
     setIsDraggingFiles(false);
+    setFormError(undefined);
     setMessage(undefined);
     setShowSubmit(true);
   }
@@ -885,16 +927,19 @@ export function App() {
     setPastedImage({ dataUrl, mimeType: file.type });
     setText("");
     setPendingFiles([]);
+    setFormError(undefined);
     setMessage(undefined);
   }
 
   function clearPastedImage() {
     setPastedImage(undefined);
+    setFormError(undefined);
     setMessage(undefined);
   }
 
   function switchTab(tab: SubmitTab) {
     setSubmitTab(tab);
+    setFormError(undefined);
     setMessage(undefined);
     if (tab === "files") {
       setText("");
@@ -946,11 +991,13 @@ export function App() {
     setText("");
     setPastedImage(undefined);
     setSubmitTab("files");
+    setFormError(undefined);
     setMessage(undefined);
   }
 
   function removePendingFile(id: string) {
     setPendingFiles((current) => current.filter((file) => file.id !== id));
+    setFormError(undefined);
   }
 
   function toggleBookingExpanded(id: string) {
@@ -1299,6 +1346,37 @@ const timezoneOptions = [
   })),
 ];
 
+function validateSubmitDialog(input: {
+  pendingFiles: PendingFile[];
+  pastedImage: PastedImage | undefined;
+  text: string;
+  submitTab: SubmitTab;
+}): string | undefined {
+  if (input.pendingFiles.length > 0 || input.pastedImage) return undefined;
+  if (input.text.trim().length > 0) return undefined;
+  return input.submitTab === "files"
+    ? "Bitte wähle mindestens eine Datei aus oder wechsle zu Text / Clipboard."
+    : "Bitte gib einen Dokumenttext ein oder füge ein Bild aus der Zwischenablage ein.";
+}
+
+function validateTripForm(form: { shortCode: string; owner: string; startDate: string; endDate: string }): string | undefined {
+  if (!form.shortCode.trim()) return "Bitte gib ein Trip-Kürzel ein.";
+  if (!form.owner.trim()) return "Bitte wähle einen Owner aus.";
+  if (!form.startDate) return "Bitte gib ein Von-Datum ein.";
+  if (!form.endDate) return "Bitte gib ein Bis-Datum ein.";
+  if (!isDateBefore(form.startDate, form.endDate)) return "Das Von-Datum muss vor dem Bis-Datum liegen.";
+  return undefined;
+}
+
+function validateBookingEditForm(form: BookingEditForm): string | undefined {
+  if (!form.title.trim()) return "Bitte gib einen Titel ein.";
+  if (!form.startValue) return "Bitte gib einen Startzeitpunkt ein.";
+  if (form.endValue && !isDateBefore(form.startValue, form.endValue)) {
+    return "Der Startzeitpunkt muss vor dem Endzeitpunkt liegen.";
+  }
+  return undefined;
+}
+
 function toBookingEditForm(booking: CalendarBooking): BookingEditForm {
   return {
     title: booking.title,
@@ -1397,6 +1475,13 @@ function normalizeOptionalText(value: string): string | undefined {
 
 function sameJson(first: unknown, second: unknown): boolean {
   return JSON.stringify(first ?? null) === JSON.stringify(second ?? null);
+}
+
+function isDateBefore(start: string, end: string): boolean {
+  const startTime = new Date(start).getTime();
+  const endTime = new Date(end).getTime();
+  if (Number.isNaN(startTime) || Number.isNaN(endTime)) return false;
+  return startTime < endTime;
 }
 
 type BookingGroup = {
