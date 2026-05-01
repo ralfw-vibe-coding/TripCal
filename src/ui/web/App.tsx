@@ -116,6 +116,7 @@ export function App() {
   });
   const [message, setMessage] = useState<string | undefined>();
   const [formError, setFormError] = useState<string | undefined>();
+  const [selectedTravelerFilters, setSelectedTravelerFilters] = useState<string[]>([]);
   const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(() => new Set());
   const [pendingDeleteBookingId, setPendingDeleteBookingId] = useState<string | undefined>();
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -283,8 +284,18 @@ export function App() {
     }
   }
 
-  const groupedBookings = useMemo(() => groupBookingsByDate(bookings), [bookings]);
-  const tripLaneSpans = useMemo(() => buildTripLaneSpans(bookings, trips), [bookings, trips]);
+  function toggleTravelerFilter(traveler: string) {
+    setSelectedTravelerFilters((current) =>
+      current.includes(traveler) ? current.filter((entry) => entry !== traveler) : [...current, traveler],
+    );
+  }
+
+  const filteredBookings = useMemo(
+    () => filterBookingsByTravelers(bookings, selectedTravelerFilters),
+    [bookings, selectedTravelerFilters],
+  );
+  const groupedBookings = useMemo(() => groupBookingsByDate(filteredBookings), [filteredBookings]);
+  const tripLaneSpans = useMemo(() => buildTripLaneSpans(filteredBookings, trips), [filteredBookings, trips]);
   const bookingEditTravelerLabels = useMemo(
     () => [...new Set([...travelerLabels, ...(bookingEditForm?.travelers ?? [])])].sort(),
     [travelerLabels, bookingEditForm?.travelers],
@@ -344,34 +355,74 @@ export function App() {
         </aside>
 
         <div className="calendarSurface">
-          {isLoadingCalendar ? (
-          <div className="emptyState">
-            <Loader2 className="spin" size={24} />
-            Kalender wird geladen
-          </div>
-        ) : bookings.length === 0 ? (
-          <div className="emptyState">
-            <CalendarDays size={28} />
-            <span>Noch keine Buchungen erfasst.</span>
-          </div>
-        ) : (
-          groupedBookings.map((group, index) => (
-            <div className="calendarDayWithGap" key={group.date}>
-              {index > 0 ? (
-                <GapBar
-                  previousDate={groupedBookings[index - 1].date}
-                  nextDate={group.date}
-                  spans={tripLaneSpans}
-                  style={calendarGridStyle}
-                />
+          <div className="calendarFilters" aria-label="Kalenderfilter">
+            <span>Traveller</span>
+            <div className="travelerFilterButtons">
+              {travelerLabels.map((traveler) => (
+                <button
+                  className={
+                    selectedTravelerFilters.includes(traveler) ? "travelerFilterButton selected" : "travelerFilterButton"
+                  }
+                  type="button"
+                  key={traveler}
+                  onClick={() => toggleTravelerFilter(traveler)}
+                  aria-pressed={selectedTravelerFilters.includes(traveler)}
+                  title={
+                    selectedTravelerFilters.includes(traveler)
+                      ? `${traveler}-Filter entfernen`
+                      : `Nur Buchungen für ${traveler} anzeigen`
+                  }
+                >
+                  <span className="travelerBadge" style={travelerBadgeStyle(traveler)}>
+                    {traveler}
+                  </span>
+                </button>
+              ))}
+              {selectedTravelerFilters.length > 0 ? (
+                <button
+                  className="clearFilterButton"
+                  type="button"
+                  onClick={() => setSelectedTravelerFilters([])}
+                  title="Traveller-Filter zurücksetzen"
+                >
+                  Alle
+                </button>
               ) : null}
-              <section className="dayGroup" style={calendarGridStyle}>
-                <div className="dateRail">
-                  <span>{formatDate(group.date)}</span>
-                </div>
-                <TripLaneColumn date={group.date} spans={tripLaneSpans} />
-                <div className="bookingList">
-                  {group.bookings.map((booking) => (
+            </div>
+          </div>
+          {isLoadingCalendar ? (
+            <div className="emptyState">
+              <Loader2 className="spin" size={24} />
+              Kalender wird geladen
+            </div>
+          ) : bookings.length === 0 ? (
+            <div className="emptyState">
+              <CalendarDays size={28} />
+              <span>Noch keine Buchungen erfasst.</span>
+            </div>
+          ) : filteredBookings.length === 0 ? (
+            <div className="emptyState">
+              <CalendarDays size={28} />
+              <span>Keine Buchungen für diesen Filter.</span>
+            </div>
+          ) : (
+            groupedBookings.map((group, index) => (
+              <div className="calendarDayWithGap" key={group.date}>
+                {index > 0 ? (
+                  <GapBar
+                    previousDate={groupedBookings[index - 1].date}
+                    nextDate={group.date}
+                    spans={tripLaneSpans}
+                    style={calendarGridStyle}
+                  />
+                ) : null}
+                <section className="dayGroup" style={calendarGridStyle}>
+                  <div className="dateRail">
+                    <span>{formatDate(group.date)}</span>
+                  </div>
+                  <TripLaneColumn date={group.date} spans={tripLaneSpans} />
+                  <div className="bookingList">
+                    {group.bookings.map((booking) => (
                   <article
                     className={booking.trip ? "bookingCard compact hasTrip" : "bookingCard compact"}
                     key={booking.bookingExtractedId}
@@ -477,12 +528,12 @@ export function App() {
                         <div className="processedAt">Verarbeitet: {formatProcessedAt(booking.processedAt)}</div>
                       </div>
                     ) : null}
-                  </article>
-                  ))}
-                </div>
-              </section>
-            </div>
-          ))
+                    </article>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            ))
           )}
         </div>
       </section>
@@ -1496,6 +1547,12 @@ type TripLaneSpan = {
   startDate: string;
   endDate: string;
 };
+
+function filterBookingsByTravelers(bookings: CalendarBooking[], selectedTravelers: string[]): CalendarBooking[] {
+  if (selectedTravelers.length === 0) return bookings;
+  const selected = new Set(selectedTravelers);
+  return bookings.filter((booking) => booking.travelers.some((traveler) => selected.has(traveler)));
+}
 
 function groupBookingsByDate(bookings: CalendarBooking[]): BookingGroup[] {
   const groups = new Map<string, CalendarBooking[]>();

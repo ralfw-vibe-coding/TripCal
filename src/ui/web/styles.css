@@ -343,6 +343,63 @@ h1 {
   text-align: center;
 }
 
+.calendarFilters {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e2e8e5;
+  color: #40504d;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.travelerFilterButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.travelerFilterButton {
+  width: 39px;
+  height: 39px;
+  display: grid;
+  place-items: center;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  padding: 2px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.travelerFilterButton:hover {
+  border-color: #cfd8d5;
+}
+
+.travelerFilterButton.selected,
+.travelerFilterButton.selected:hover {
+  border-color: #2563a9;
+}
+
+.clearFilterButton {
+  min-height: 31px;
+  align-self: center;
+  border: 1px solid #cfd8d5;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #40504d;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.clearFilterButton:hover {
+  border-color: #18201f;
+  color: #18201f;
+}
+
 .dayGroup {
   display: grid;
   grid-template-columns: 150px minmax(22px, calc(var(--trip-lane-count, 1) * 10px + 12px)) 1fr;
