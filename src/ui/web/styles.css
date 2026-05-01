@@ -347,7 +347,7 @@ h1 {
   min-height: 54px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   padding: 8px 0;
   border-bottom: 1px solid #e2e8e5;
   color: #40504d;
@@ -355,10 +355,42 @@ h1 {
   font-weight: 800;
 }
 
-.travelerFilterButtons {
+.filterModeGroup,
+.filterCriteria {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.filterModeGroup {
   gap: 6px;
+}
+
+.filterCriteria {
+  gap: 6px;
+}
+
+.filterModeButton {
+  min-height: 31px;
+  border: 1px solid #cfd8d5;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #40504d;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.filterModeButton:hover {
+  border-color: #18201f;
+  color: #18201f;
+}
+
+.filterModeButton.active {
+  border-color: #18201f;
+  background: #18201f;
+  color: #ffffff;
 }
 
 .travelerFilterButton {
@@ -382,9 +414,11 @@ h1 {
   border-color: #2563a9;
 }
 
-.clearFilterButton {
+.tripFilterChip {
   min-height: 31px;
-  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 1px solid #cfd8d5;
   border-radius: 999px;
   padding: 0 10px;
@@ -392,7 +426,37 @@ h1 {
   color: #40504d;
   cursor: pointer;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 800;
+}
+
+.tripFilterChip:hover,
+.tripFilterChip.selected {
+  color: #18201f;
+}
+
+.tripFilterChip.selected {
+  border-width: 2px;
+}
+
+.tripFilterDot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+.clearFilterButton {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  align-self: center;
+  border: 1px solid #cfd8d5;
+  border-radius: 999px;
+  padding: 0;
+  background: #ffffff;
+  color: #40504d;
+  cursor: pointer;
 }
 
 .clearFilterButton:hover {

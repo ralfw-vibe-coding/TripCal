@@ -66,6 +66,7 @@ type PendingFile = {
 };
 
 type SubmitTab = "files" | "text";
+type CalendarFilterMode = "traveler" | "trip";
 
 type ActivityLogTableRow =
   | { type: "entry"; entry: ActivityLogEntry }
@@ -116,7 +117,9 @@ export function App() {
   });
   const [message, setMessage] = useState<string | undefined>();
   const [formError, setFormError] = useState<string | undefined>();
+  const [calendarFilterMode, setCalendarFilterMode] = useState<CalendarFilterMode>("traveler");
   const [selectedTravelerFilters, setSelectedTravelerFilters] = useState<string[]>([]);
+  const [selectedTripFilter, setSelectedTripFilter] = useState<string | undefined>();
   const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(() => new Set());
   const [pendingDeleteBookingId, setPendingDeleteBookingId] = useState<string | undefined>();
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -285,14 +288,38 @@ export function App() {
   }
 
   function toggleTravelerFilter(traveler: string) {
+    setSelectedTripFilter(undefined);
     setSelectedTravelerFilters((current) =>
       current.includes(traveler) ? current.filter((entry) => entry !== traveler) : [...current, traveler],
     );
   }
 
+  function setFilterMode(mode: CalendarFilterMode) {
+    setCalendarFilterMode(mode);
+    if (mode === "traveler") {
+      setSelectedTripFilter(undefined);
+    } else {
+      setSelectedTravelerFilters([]);
+    }
+  }
+
+  function selectTripFilter(tripCreatedId: string) {
+    setSelectedTravelerFilters([]);
+    setSelectedTripFilter((current) => (current === tripCreatedId ? undefined : tripCreatedId));
+  }
+
+  function clearCalendarFilters() {
+    setSelectedTravelerFilters([]);
+    setSelectedTripFilter(undefined);
+  }
+
   const filteredBookings = useMemo(
-    () => filterBookingsByTravelers(bookings, selectedTravelerFilters),
-    [bookings, selectedTravelerFilters],
+    () => filterBookings(bookings, {
+      mode: calendarFilterMode,
+      selectedTravelers: selectedTravelerFilters,
+      selectedTrip: selectedTripFilter,
+    }),
+    [bookings, calendarFilterMode, selectedTravelerFilters, selectedTripFilter],
   );
   const groupedBookings = useMemo(() => groupBookingsByDate(filteredBookings), [filteredBookings]);
   const tripLaneSpans = useMemo(() => buildTripLaneSpans(filteredBookings, trips), [filteredBookings, trips]);
@@ -356,9 +383,26 @@ export function App() {
 
         <div className="calendarSurface">
           <div className="calendarFilters" aria-label="Kalenderfilter">
-            <span>Traveller</span>
-            <div className="travelerFilterButtons">
-              {travelerLabels.map((traveler) => (
+            <div className="filterModeGroup">
+              <span>Filter:</span>
+              <button
+                className={calendarFilterMode === "traveler" ? "filterModeButton active" : "filterModeButton"}
+                type="button"
+                onClick={() => setFilterMode("traveler")}
+              >
+                Reisender
+              </button>
+              <button
+                className={calendarFilterMode === "trip" ? "filterModeButton active" : "filterModeButton"}
+                type="button"
+                onClick={() => setFilterMode("trip")}
+              >
+                Trip
+              </button>
+            </div>
+
+            <div className="filterCriteria">
+              {calendarFilterMode === "traveler" ? travelerLabels.map((traveler) => (
                 <button
                   className={
                     selectedTravelerFilters.includes(traveler) ? "travelerFilterButton selected" : "travelerFilterButton"
@@ -377,15 +421,27 @@ export function App() {
                     {traveler}
                   </span>
                 </button>
-              ))}
-              {selectedTravelerFilters.length > 0 ? (
+              )) : trips.map((trip) => (
                 <button
-                  className="clearFilterButton"
+                  className={selectedTripFilter === trip.tripCreatedId ? "tripFilterChip selected" : "tripFilterChip"}
                   type="button"
-                  onClick={() => setSelectedTravelerFilters([])}
-                  title="Traveller-Filter zurücksetzen"
+                  key={trip.tripCreatedId}
+                  onClick={() => selectTripFilter(trip.tripCreatedId)}
+                  aria-pressed={selectedTripFilter === trip.tripCreatedId}
+                  title={
+                    selectedTripFilter === trip.tripCreatedId
+                      ? `${trip.shortCode}-Filter entfernen`
+                      : `Nur Buchungen im Trip ${trip.shortCode} anzeigen`
+                  }
+                  style={{ borderColor: selectedTripFilter === trip.tripCreatedId ? trip.color : undefined }}
                 >
-                  Alle
+                  <span className="tripFilterDot" style={{ backgroundColor: trip.color }} />
+                  {trip.shortCode}
+                </button>
+              ))}
+              {selectedTravelerFilters.length > 0 || selectedTripFilter ? (
+                <button className="clearFilterButton" type="button" onClick={clearCalendarFilters} title="Filter zurücksetzen">
+                  <X size={15} />
                 </button>
               ) : null}
             </div>
@@ -1548,9 +1604,17 @@ type TripLaneSpan = {
   endDate: string;
 };
 
-function filterBookingsByTravelers(bookings: CalendarBooking[], selectedTravelers: string[]): CalendarBooking[] {
-  if (selectedTravelers.length === 0) return bookings;
-  const selected = new Set(selectedTravelers);
+function filterBookings(
+  bookings: CalendarBooking[],
+  filter: { mode: CalendarFilterMode; selectedTravelers: string[]; selectedTrip: string | undefined },
+): CalendarBooking[] {
+  if (filter.mode === "trip") {
+    if (!filter.selectedTrip) return bookings;
+    return bookings.filter((booking) => booking.trip?.tripCreatedId === filter.selectedTrip);
+  }
+
+  if (filter.selectedTravelers.length === 0) return bookings;
+  const selected = new Set(filter.selectedTravelers);
   return bookings.filter((booking) => booking.travelers.some((traveler) => selected.has(traveler)));
 }
 
