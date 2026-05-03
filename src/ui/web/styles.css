@@ -71,6 +71,32 @@ h1 {
   gap: 10px;
 }
 
+.mainNav {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #cfd8d5;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.mainNavButton {
+  min-height: 30px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: transparent;
+  color: #40504d;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.mainNavButton.active {
+  background: #18201f;
+  color: #ffffff;
+}
+
 .primaryButton,
 .iconButton {
   border: 1px solid #18201f;
@@ -214,6 +240,125 @@ h1 {
   margin-top: 3px;
   color: #71817d;
   font-size: 0.72rem;
+}
+
+.reportSurface {
+  border-top: 1px solid #d7dedb;
+  padding-top: 14px;
+}
+
+.reportTripList {
+  display: grid;
+  gap: 10px;
+}
+
+.reportTripCard {
+  border: 1px solid #d7dedb;
+  border-left: 4px solid #71817d;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.reportTripHeader {
+  width: 100%;
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 0;
+  padding: 12px 14px;
+  background: #ffffff;
+  color: #18201f;
+  cursor: pointer;
+  text-align: left;
+}
+
+.reportTripHeader:hover {
+  background: #f7f7f4;
+}
+
+.reportTripTitleBlock {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.reportTripTitle {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 1rem;
+}
+
+.reportTripNumber {
+  color: #71817d;
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.reportTripName {
+  color: #40504d;
+  font-weight: 700;
+}
+
+.reportTripDates {
+  color: #71817d;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.reportTripMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #40504d;
+}
+
+.reportTripBody {
+  border-top: 1px solid #e2e8e5;
+  padding: 14px;
+}
+
+.reportDayGrid {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reportDayTile {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #d7dedb;
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: #f7f7f4;
+  color: #40504d;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.reportDayMain {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.reportDayNumber {
+  color: #71817d;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.reportDayCountry {
+  color: #40504d;
+  font-weight: 800;
 }
 
 .logLinkWrap {
@@ -1151,6 +1296,15 @@ textarea {
 
   .toolbar {
     justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .mainNav {
+    width: 100%;
+  }
+
+  .mainNavButton {
+    flex: 1;
   }
 
   .calendarLayout {
@@ -1168,6 +1322,16 @@ textarea {
 
   .tripList {
     grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  }
+
+  .reportDayGrid {
+    grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
+  }
+
+  .reportDayTile {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .dayGroup {

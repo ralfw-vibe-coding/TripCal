@@ -67,6 +67,7 @@ type PendingFile = {
 
 type SubmitTab = "files" | "text";
 type CalendarFilterMode = "traveler" | "trip";
+type MainView = "calendar" | "reports";
 
 type ActivityLogTableRow =
   | { type: "entry"; entry: ActivityLogEntry }
@@ -117,10 +118,12 @@ export function App() {
   });
   const [message, setMessage] = useState<string | undefined>();
   const [formError, setFormError] = useState<string | undefined>();
+  const [activeMainView, setActiveMainView] = useState<MainView>("calendar");
   const [calendarFilterMode, setCalendarFilterMode] = useState<CalendarFilterMode>("traveler");
   const [selectedTravelerFilters, setSelectedTravelerFilters] = useState<string[]>([]);
   const [selectedTripFilter, setSelectedTripFilter] = useState<string | undefined>();
   const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(() => new Set());
+  const [expandedReportTripIds, setExpandedReportTripIds] = useState<Set<string>>(() => new Set());
   const [pendingDeleteBookingId, setPendingDeleteBookingId] = useState<string | undefined>();
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -313,6 +316,18 @@ export function App() {
     setSelectedTripFilter(undefined);
   }
 
+  function toggleReportTripExpanded(id: string) {
+    setExpandedReportTripIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
   const filteredBookings = useMemo(
     () => filterBookings(bookings, {
       mode: calendarFilterMode,
@@ -334,21 +349,40 @@ export function App() {
       <header className="topBar">
         <div>
           <div className="eyebrow">TripCal</div>
-          <h1>Buchungskalender</h1>
+          <h1>{activeMainView === "calendar" ? "Buchungskalender" : "Trip Reports"}</h1>
         </div>
         <div className="toolbar">
+          <nav className="mainNav" aria-label="Hauptansicht">
+            <button
+              className={activeMainView === "calendar" ? "mainNavButton active" : "mainNavButton"}
+              type="button"
+              onClick={() => setActiveMainView("calendar")}
+            >
+              Kalender
+            </button>
+            <button
+              className={activeMainView === "reports" ? "mainNavButton active" : "mainNavButton"}
+              type="button"
+              onClick={() => setActiveMainView("reports")}
+            >
+              Reports
+            </button>
+          </nav>
           <button className="iconButton" type="button" onClick={loadCalendar} title="Kalender aktualisieren">
             {isLoadingCalendar ? <Loader2 className="spin" size={18} /> : <RefreshCw size={18} />}
           </button>
-          <button className="primaryButton" type="button" onClick={openSubmitDialog}>
-            <Plus size={18} />
-            Dokument
-          </button>
+          {activeMainView === "calendar" ? (
+            <button className="primaryButton" type="button" onClick={openSubmitDialog}>
+              <Plus size={18} />
+              Dokument
+            </button>
+          ) : null}
         </div>
       </header>
 
       {message ? <div className="notice">{message}</div> : null}
 
+      {activeMainView === "calendar" ? (
       <section className="calendarLayout" aria-label="Buchungskalender">
         <aside className="tripSidebar" aria-label="Trips">
           <div className="tripSidebarHeader">
@@ -593,6 +627,14 @@ export function App() {
           )}
         </div>
       </section>
+      ) : (
+        <TripReportsView
+          trips={trips}
+          isLoading={isLoadingCalendar}
+          expandedTripIds={expandedReportTripIds}
+          onToggleTrip={toggleReportTripExpanded}
+        />
+      )}
 
       <div className="logLinkWrap">
         <a href="/log" target="_blank" rel="noreferrer">
@@ -1257,6 +1299,93 @@ function ActivityLogPage() {
   );
 }
 
+function TripReportsView({
+  trips,
+  isLoading,
+  expandedTripIds,
+  onToggleTrip,
+}: {
+  trips: Trip[];
+  isLoading: boolean;
+  expandedTripIds: Set<string>;
+  onToggleTrip: (tripCreatedId: string) => void;
+}) {
+  if (isLoading) {
+    return (
+      <section className="reportSurface" aria-label="Trip Reports">
+        <div className="emptyState">
+          <Loader2 className="spin" size={24} />
+          Reports werden geladen
+        </div>
+      </section>
+    );
+  }
+
+  if (trips.length === 0) {
+    return (
+      <section className="reportSurface" aria-label="Trip Reports">
+        <div className="emptyState">
+          <CalendarDays size={28} />
+          <span>Noch keine Trips angelegt.</span>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="reportSurface" aria-label="Trip Reports">
+      <div className="reportTripList">
+        {trips.map((trip) => {
+          const isExpanded = expandedTripIds.has(trip.tripCreatedId);
+          const days = daysInRange(trip.startDate, trip.endDate);
+          return (
+            <article className="reportTripCard" key={trip.tripCreatedId} style={{ borderLeftColor: trip.color }}>
+              <button
+                className="reportTripHeader"
+                type="button"
+                onClick={() => onToggleTrip(trip.tripCreatedId)}
+                aria-expanded={isExpanded}
+              >
+                <div className="reportTripTitleBlock">
+                  <span className="reportTripTitle">
+                    <strong>{trip.shortCode}</strong>
+                    <span className="reportTripNumber">#{trip.tripNumber}</span>
+                    {trip.title ? <span className="reportTripName">{trip.title}</span> : null}
+                  </span>
+                  <span className="reportTripDates">
+                    {formatShortDate(trip.startDate)} - {formatShortDate(trip.endDate)}
+                  </span>
+                </div>
+                <div className="reportTripMeta">
+                  <span className="travelerBadge tripOwnerBadge" title={trip.owner} style={travelerBadgeStyle(trip.owner)}>
+                    {trip.owner}
+                  </span>
+                  {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                </div>
+              </button>
+              {isExpanded ? (
+                <div className="reportTripBody">
+                  <div className="reportDayGrid" aria-label={`Tage für Trip ${trip.shortCode}`}>
+                    {days.map((day, index) => (
+                      <div className="reportDayTile" key={day}>
+                        <span className="reportDayMain">
+                          <span className="reportDayNumber">{String(index + 1).padStart(2, "0")}</span>
+                          <span>{formatReportDay(day)}</span>
+                        </span>
+                        <span className="reportDayCountry">--</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function TravelerBadges({ travelers }: { travelers: string[] }) {
   return (
     <div className="travelerBadges" aria-label="Reisende">
@@ -1682,6 +1811,17 @@ function daysBetween(first: string, second: string): number {
   return Number.isFinite(days) ? days : 0;
 }
 
+function daysInRange(startDate: string, endDate: string): string[] {
+  const dayCount = daysBetween(startDate, endDate);
+  if (dayCount < 0) return [];
+  const startTime = Date.UTC(Number(startDate.slice(0, 4)), Number(startDate.slice(5, 7)) - 1, Number(startDate.slice(8, 10)));
+  if (!Number.isFinite(startTime)) return [];
+  return Array.from({ length: dayCount + 1 }, (_, index) => {
+    const date = new Date(startTime + index * 86_400_000);
+    return date.toISOString().slice(0, 10);
+  });
+}
+
 function compareCalendarBookings(a: CalendarBooking, b: CalendarBooking): number {
   return startTime(a) - startTime(b) || a.title.localeCompare(b.title);
 }
@@ -1700,6 +1840,15 @@ function formatDate(value: string): string {
     month: "2-digit",
     year: "numeric",
   }).format(new Date(`${value}T12:00:00`));
+}
+
+function formatReportDay(value: string): string {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(date);
 }
 
 function formatRange(booking: CalendarBooking): string {
