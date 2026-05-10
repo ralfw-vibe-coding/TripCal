@@ -33,6 +33,7 @@ async function appendFailureToActivityLog(ingestRequest: IngestEmailRequest, err
       scope: "email-ingest",
       message: "E-Mail-Ingest unerwartet fehlgeschlagen",
       details: {
+        documentName: describeIngestRequest(ingestRequest),
         messageId: ingestRequest.messageId,
         subject: ingestRequest.subject,
         attachments: ingestRequest.attachments.map((attachment) => ({
@@ -45,4 +46,11 @@ async function appendFailureToActivityLog(ingestRequest: IngestEmailRequest, err
   } catch {
     // If runtime initialization or logging fails, the console error above is the remaining trace.
   }
+}
+
+function describeIngestRequest(ingestRequest: IngestEmailRequest): string {
+  if (ingestRequest.attachments.length === 1) return `E-Mail-Anhang: ${ingestRequest.attachments[0].fileName}`;
+  if (ingestRequest.attachments.length > 1) return `E-Mail mit ${ingestRequest.attachments.length} Anhängen`;
+  if (ingestRequest.text?.trim()) return `E-Mail-Text: ${ingestRequest.subject ?? ingestRequest.messageId}`;
+  return `E-Mail: ${ingestRequest.subject ?? ingestRequest.messageId}`;
 }

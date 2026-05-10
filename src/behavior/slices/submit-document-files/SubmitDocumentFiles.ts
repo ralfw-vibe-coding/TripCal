@@ -116,6 +116,7 @@ export class SubmitDocumentFiles {
       const recorded = await this.recordDocumentTextAndExtractBookings.process({
         source: "file",
         documentFileUploadedId: uploadResponse.documentFileUploadedId,
+        documentName: `Dateiupload: ${file.fileName}`,
         text: extracted.text,
       });
 

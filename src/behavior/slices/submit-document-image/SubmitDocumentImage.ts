@@ -42,6 +42,7 @@ export class SubmitDocumentImage {
 
     return this.recordDocumentTextAndExtractBookings.process({
       source: "image",
+      documentName: "Clipboard-Bild",
       text: extracted.text,
     });
   }
@@ -57,4 +58,3 @@ export class SubmitDocumentImage {
     }
   }
 }
-

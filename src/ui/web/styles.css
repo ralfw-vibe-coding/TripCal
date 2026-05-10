@@ -447,9 +447,17 @@ h1 {
 }
 
 .logScope {
-  min-width: 150px;
+  min-width: 120px;
   color: #72b7ff;
   font-weight: 700;
+}
+
+.logDocument {
+  min-width: 240px;
+  max-width: 360px;
+  color: #f3f7f5;
+  font-weight: 700;
+  word-break: break-word;
 }
 
 .logMessage {

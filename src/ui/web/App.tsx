@@ -1266,6 +1266,7 @@ function ActivityLogPage() {
               <tr>
                 <th>Zeit</th>
                 <th>Level</th>
+                <th>Dokument</th>
                 <th>Scope</th>
                 <th>Meldung</th>
                 <th>Details</th>
@@ -1275,7 +1276,7 @@ function ActivityLogPage() {
               {rows.map((row) =>
                 row.type === "separator" ? (
                   <tr className="batchSeparator" key={row.id}>
-                    <td colSpan={5}>Batchwechsel · Abstand {formatDuration(row.gapMs)}</td>
+                    <td colSpan={6}>Batchwechsel · Abstand {formatDuration(row.gapMs)}</td>
                   </tr>
                 ) : (
                   <tr key={row.entry.id}>
@@ -1283,6 +1284,7 @@ function ActivityLogPage() {
                     <td>
                       <span className={`logLevel ${row.entry.level}`}>{row.entry.level}</span>
                     </td>
+                    <td className="logDocument">{formatLogDocument(row.entry)}</td>
                     <td className="logScope">{row.entry.scope}</td>
                     <td className="logMessage">{row.entry.message}</td>
                     <td>
@@ -1981,7 +1983,26 @@ function formatLogTime(value: string): string {
 
 function formatLogDetails(details: Record<string, unknown> | undefined): string {
   if (!details) return "";
-  return JSON.stringify(details, null, 2);
+  const { documentName: _documentName, ...rest } = details;
+  return Object.keys(rest).length === 0 ? "" : JSON.stringify(rest, null, 2);
+}
+
+function formatLogDocument(entry: ActivityLogEntry): string {
+  const details = entry.details ?? {};
+  const documentName = details.documentName;
+  if (typeof documentName === "string" && documentName.trim().length > 0) return documentName;
+
+  const fileName = details.fileName;
+  if (typeof fileName === "string" && fileName.trim().length > 0) return fileName;
+
+  const subject = details.subject;
+  if (typeof subject === "string" && subject.trim().length > 0) return `E-Mail: ${subject}`;
+
+  const source = details.source;
+  if (source === "text") return "Manueller Text";
+  if (source === "image") return "Clipboard-Bild";
+  if (source === "email") return "E-Mail-Text";
+  return "—";
 }
 
 function formatDuration(ms: number): string {

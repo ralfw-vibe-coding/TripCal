@@ -8,16 +8,19 @@ export type RecordDocumentTextAndExtractBookingsRequest =
   | {
       source: "text" | "image";
       text: string;
+      documentName?: string;
     }
   | {
       source: "file";
       documentFileUploadedId: string;
       text: string;
+      documentName?: string;
     }
   | {
       source: "email";
       emailIngestedId: string;
       text: string;
+      documentName?: string;
     };
 
 export type RecordDocumentTextAndExtractBookingsResponse =
@@ -46,24 +49,23 @@ export class RecordDocumentTextAndExtractBookings {
     request: RecordDocumentTextAndExtractBookingsRequest,
   ): Promise<RecordDocumentTextAndExtractBookingsResponse> {
     const text = request.text.trim();
+    const documentDetails = createDocumentLogDetails(request);
     await this.log("info", "Dokumenttext empfangen", {
-      source: request.source,
+      ...documentDetails,
       textLength: text.length,
-      ...(request.source === "file" ? { documentFileUploadedId: request.documentFileUploadedId } : {}),
-      ...(request.source === "email" ? { emailIngestedId: request.emailIngestedId } : {}),
     });
 
     if (text.length === 0) {
-      await this.log("warning", "Dokumenttext abgelehnt: leer", { source: request.source });
+      await this.log("warning", "Dokumenttext abgelehnt: leer", documentDetails);
       return { status: "rejected", reason: "empty_text", message: "Bitte gib einen Dokumenttext ein." };
     }
     if (text.length < 12) {
-      await this.log("warning", "Dokumenttext abgelehnt: zu kurz", { source: request.source, textLength: text.length });
+      await this.log("warning", "Dokumenttext abgelehnt: zu kurz", { ...documentDetails, textLength: text.length });
       return { status: "rejected", reason: "text_too_short", message: "Der Dokumenttext ist zu kurz." };
     }
 
     const recordedAt = this.clock.now().toISOString();
-    await this.log("info", "Dokumenttext wird aufgezeichnet", { source: request.source, recordedAt });
+    await this.log("info", "Dokumenttext wird aufgezeichnet", { ...documentDetails, recordedAt });
     const submitResponse = await this.submitDocumentTextCommand.process(
       request.source === "file"
         ? {
@@ -87,23 +89,25 @@ export class RecordDocumentTextAndExtractBookings {
     );
     if (submitResponse.status === "failed") {
       await this.log("warning", "Dokumenttext konnte nicht aufgezeichnet werden", {
-        source: request.source,
+        ...documentDetails,
         reason: submitResponse.reason,
       });
       return { status: "rejected", reason: "empty_text", message: "Bitte gib einen Dokumenttext ein." };
     }
 
     await this.log("info", "Dokumenttext aufgezeichnet", {
-      source: request.source,
+      ...documentDetails,
       documentTextRecordedId: submitResponse.documentTextRecordedId,
     });
     await this.log("info", "Buchungsextraktion gestartet", {
+      ...documentDetails,
       documentTextRecordedId: submitResponse.documentTextRecordedId,
     });
 
     const extraction = await this.extractBookings(text);
     if (!extraction) {
       await this.log("warning", "Buchungsextraktion fehlgeschlagen", {
+        ...documentDetails,
         documentTextRecordedId: submitResponse.documentTextRecordedId,
       });
       return {
@@ -114,6 +118,7 @@ export class RecordDocumentTextAndExtractBookings {
     }
 
     await this.log("info", "Buchungsextraktion abgeschlossen", {
+      ...documentDetails,
       documentTextRecordedId: submitResponse.documentTextRecordedId,
       bookingCount: extraction.bookings.length,
       warnings: extraction.warnings,
@@ -127,6 +132,7 @@ export class RecordDocumentTextAndExtractBookings {
 
     if (recordResponse.status === "failed") {
       await this.log("warning", "Extrahierte Buchungen konnten nicht aufgezeichnet werden", {
+        ...documentDetails,
         documentTextRecordedId: submitResponse.documentTextRecordedId,
         reason: recordResponse.reason,
       });
@@ -138,6 +144,7 @@ export class RecordDocumentTextAndExtractBookings {
     }
 
     await this.log("info", "Extrahierte Buchungen aufgezeichnet", {
+      ...documentDetails,
       documentTextRecordedId: submitResponse.documentTextRecordedId,
       bookingExtractedIds: recordResponse.bookingExtractedIds,
     });
@@ -170,4 +177,20 @@ export class RecordDocumentTextAndExtractBookings {
       // Activity logging must not block document processing.
     }
   }
+}
+
+function createDocumentLogDetails(request: RecordDocumentTextAndExtractBookingsRequest): Record<string, unknown> {
+  return {
+    documentName: request.documentName ?? defaultDocumentName(request.source),
+    source: request.source,
+    ...(request.source === "file" ? { documentFileUploadedId: request.documentFileUploadedId } : {}),
+    ...(request.source === "email" ? { emailIngestedId: request.emailIngestedId } : {}),
+  };
+}
+
+function defaultDocumentName(source: RecordDocumentTextAndExtractBookingsRequest["source"]): string {
+  if (source === "text") return "Manueller Dokumenttext";
+  if (source === "image") return "Clipboard-Bild";
+  if (source === "email") return "E-Mail-Text";
+  return "Datei";
 }

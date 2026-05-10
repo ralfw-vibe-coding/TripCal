@@ -49,7 +49,9 @@ export class IngestEmail {
   ) {}
 
   async process(request: IngestEmailRequest): Promise<IngestEmailResponse> {
+    const ingestDocumentName = describeIngestRequest(request);
     await this.log("info", "E-Mail-Ingest empfangen", {
+      documentName: ingestDocumentName,
       messageId: request.messageId,
       from: request.from,
       subject: request.subject,
@@ -58,12 +60,15 @@ export class IngestEmail {
     });
 
     if (request.messageId.trim().length === 0) {
-      await this.log("warning", "E-Mail-Ingest abgelehnt: fehlende Message-ID", {});
+      await this.log("warning", "E-Mail-Ingest abgelehnt: fehlende Message-ID", { documentName: ingestDocumentName });
       return { status: "rejected", reason: "missing_message_id", message: "Die E-Mail hat keine Message-ID." };
     }
 
     if (!hasUsableText(request.text) && request.attachments.length === 0) {
-      await this.log("warning", "E-Mail-Ingest abgelehnt: keine Dokumente", { messageId: request.messageId });
+      await this.log("warning", "E-Mail-Ingest abgelehnt: keine Dokumente", {
+        documentName: ingestDocumentName,
+        messageId: request.messageId,
+      });
       return { status: "rejected", reason: "no_documents", message: "Die E-Mail enthält keinen Text und keine Anhänge." };
     }
 
@@ -77,6 +82,7 @@ export class IngestEmail {
 
     if (emailResponse.status === "failed") {
       await this.log("warning", "E-Mail-Ingest abgelehnt: E-Mail konnte nicht aufgezeichnet werden", {
+        documentName: ingestDocumentName,
         messageId: request.messageId,
       });
       return { status: "rejected", reason: "missing_message_id", message: "Die E-Mail hat keine Message-ID." };
@@ -84,6 +90,7 @@ export class IngestEmail {
 
     if (emailResponse.duplicate) {
       await this.log("info", "E-Mail-Ingest ignoriert: bereits verarbeitet", {
+        documentName: ingestDocumentName,
         messageId: request.messageId,
         emailIngestedId: emailResponse.emailIngestedId,
       });
@@ -104,18 +111,22 @@ export class IngestEmail {
     const warnings: string[] = [];
 
     if (hasUsableText(request.text)) {
+      const documentName = `E-Mail-Text: ${request.subject ?? request.messageId}`;
       await this.log("info", "E-Mail-Text wird verarbeitet", {
+        documentName,
         messageId: request.messageId,
         emailIngestedId: emailResponse.emailIngestedId,
       });
       const textResult = await this.recordDocumentTextAndExtractBookings.process({
         source: "email",
         emailIngestedId: emailResponse.emailIngestedId,
+        documentName,
         text: request.text,
       });
 
       if (textResult.status === "accepted") {
         await this.log("info", "E-Mail-Text verarbeitet", {
+          documentName,
           messageId: request.messageId,
           documentTextRecordedId: textResult.documentTextRecordedId,
           bookingCount: textResult.bookingExtractedIds.length,
@@ -125,6 +136,7 @@ export class IngestEmail {
         warnings.push(...(textResult.warnings ?? []));
       } else {
         await this.log("warning", "E-Mail-Text konnte nicht verarbeitet werden", {
+          documentName,
           messageId: request.messageId,
           reason: textResult.reason,
           message: textResult.message,
@@ -134,15 +146,18 @@ export class IngestEmail {
     }
 
     for (const attachment of request.attachments) {
+      const documentName = `E-Mail-Anhang: ${attachment.fileName}`;
       await this.log("info", "E-Mail-Anhang wird verarbeitet", {
+        documentName,
         messageId: request.messageId,
         emailIngestedId: emailResponse.emailIngestedId,
         fileName: attachment.fileName,
         mimeType: attachment.mimeType,
       });
-      const result = await this.processOneAttachment(emailResponse.emailIngestedId, attachment);
+      const result = await this.processOneAttachment(emailResponse.emailIngestedId, attachment, documentName);
       if (result.status === "failed") {
         await this.log("warning", "E-Mail-Anhang konnte nicht verarbeitet werden", {
+          documentName,
           messageId: request.messageId,
           fileName: attachment.fileName,
           message: result.message,
@@ -151,6 +166,7 @@ export class IngestEmail {
         continue;
       }
       await this.log("info", "E-Mail-Anhang verarbeitet", {
+        documentName,
         messageId: request.messageId,
         fileName: attachment.fileName,
         documentFileUploadedId: result.documentFileUploadedId,
@@ -165,6 +181,7 @@ export class IngestEmail {
 
     if (documentTextRecordedIds.length === 0) {
       await this.log("warning", "E-Mail-Ingest ohne verarbeitete Dokumenttexte beendet", {
+        documentName: ingestDocumentName,
         messageId: request.messageId,
         emailIngestedId: emailResponse.emailIngestedId,
         warnings,
@@ -207,6 +224,7 @@ export class IngestEmail {
   private async processOneAttachment(
     emailIngestedId: string,
     attachment: IngestEmailAttachmentInput,
+    documentName: string,
   ): Promise<
     | {
         status: "succeeded";
@@ -224,6 +242,12 @@ export class IngestEmail {
         mimeType: attachment.mimeType,
         dataBase64,
       });
+      await this.log("info", "Datei gespeichert", {
+        documentName,
+        fileName: attachment.fileName,
+        mimeType: attachment.mimeType,
+        sizeBytes: stored.sizeBytes,
+      });
 
       const uploadResponse = await this.recordDocumentFileUploadedCommand.process({
         source: "email",
@@ -239,16 +263,29 @@ export class IngestEmail {
         return { status: "failed", message: "Anhang konnte nicht registriert werden." };
       }
 
+      await this.log("info", "Textextraktion gestartet", {
+        documentName,
+        fileName: attachment.fileName,
+        mimeType: attachment.mimeType,
+        documentFileUploadedId: uploadResponse.documentFileUploadedId,
+      });
       const extracted = await this.textExtractionProvider.extractText({
         mimeType: attachment.mimeType,
         fileName: attachment.fileName,
         dataBase64,
         contentDataUrl: `data:${attachment.mimeType};base64,${dataBase64}`,
       });
+      await this.log("info", "Textextraktion abgeschlossen", {
+        documentName,
+        fileName: attachment.fileName,
+        textLength: extracted.text.trim().length,
+        documentFileUploadedId: uploadResponse.documentFileUploadedId,
+      });
 
       const recorded = await this.recordDocumentTextAndExtractBookings.process({
         source: "file",
         documentFileUploadedId: uploadResponse.documentFileUploadedId,
+        documentName,
         text: extracted.text,
       });
 
@@ -289,4 +326,11 @@ function normalizeBase64(value: string): string {
   const marker = ";base64,";
   const markerIndex = value.indexOf(marker);
   return markerIndex >= 0 ? value.slice(markerIndex + marker.length) : value;
+}
+
+function describeIngestRequest(request: IngestEmailRequest): string {
+  if (request.attachments.length === 1) return `E-Mail-Anhang: ${request.attachments[0].fileName}`;
+  if (request.attachments.length > 1) return `E-Mail mit ${request.attachments.length} Anhängen`;
+  if (hasUsableText(request.text)) return `E-Mail-Text: ${request.subject ?? request.messageId}`;
+  return `E-Mail: ${request.subject ?? request.messageId}`;
 }
