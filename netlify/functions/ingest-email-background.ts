@@ -1,5 +1,5 @@
-import { getProcessorRuntime } from "../../src/runtime/singleton";
 import { parseIngestEmailRequest } from "./_shared/ingest-email-request";
+import { runEmailIngest } from "./_shared/run-email-ingest";
 
 export default async (request: Request) => {
   if (request.method !== "POST") {
@@ -21,27 +21,7 @@ export default async (request: Request) => {
     });
   }
 
-  try {
-    const runtime = await getProcessorRuntime();
-    const response = await runtime.processor.ingestEmail(ingestRequest);
-    if (response.status === "rejected") {
-      console.warn("TripCal email ingest rejected", {
-        messageId: ingestRequest.messageId,
-        reason: response.reason,
-        message: response.message,
-      });
-    }
-  } catch (error) {
-    console.error("TripCal email ingest failed", {
-      messageId: ingestRequest.messageId,
-      subject: ingestRequest.subject,
-      attachmentCount: ingestRequest.attachments.length,
-      error: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-
-    await appendFailureToActivityLog(ingestRequest, error);
-  }
+  await runEmailIngest(ingestRequest);
 
   return json(202, { status: "accepted" });
 };
@@ -76,35 +56,6 @@ function json(status: number, body: unknown) {
     status,
     headers: { "content-type": "application/json" },
   });
-}
-
-async function appendFailureToActivityLog(
-  ingestRequest: {
-    messageId: string;
-    subject?: string;
-    attachments: Array<{ fileName: string; mimeType: string }>;
-  },
-  error: unknown,
-): Promise<void> {
-  try {
-    const runtime = await getProcessorRuntime();
-    await runtime.activityLogProvider.append({
-      level: "error",
-      scope: "email-ingest",
-      message: "E-Mail-Ingest unerwartet fehlgeschlagen",
-      details: {
-        messageId: ingestRequest.messageId,
-        subject: ingestRequest.subject,
-        attachments: ingestRequest.attachments.map((attachment) => ({
-          fileName: attachment.fileName,
-          mimeType: attachment.mimeType,
-        })),
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-    });
-  } catch {
-    // If runtime initialization or logging fails, the console error above is the remaining trace.
-  }
 }
 
 declare global {

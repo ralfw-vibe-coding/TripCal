@@ -38,7 +38,7 @@
     },
     {
       "parameters": {
-        "jsCode": "return $input.all().map((item) => ({\n  json: {\n    tripcalUrl: 'https://ralfw-tripcal.netlify.app/api/ingest-email-background',\n    tripcalToken: 'REPLACE_WITH_EMAIL_INGEST_TOKEN',\n    payload: item.json,\n  },\n}));"
+        "jsCode": "return $input.all().map((item) => ({\n  json: {\n    tripcalUrl: 'https://ralfw-tripcal.netlify.app/api/ingest-email',\n    tripcalToken: 'REPLACE_WITH_EMAIL_INGEST_TOKEN',\n    payload: item.json,\n  },\n}));"
       },
       "id": "TripCalConfig",
       "name": "TripCal Config",
@@ -48,7 +48,7 @@
         780,
         300
       ],
-      "notes": "Hier TripCal Endpoint und EMAIL_INGEST_TOKEN eintragen/pruefen. tripcalUrl muss auf /api/ingest-email-background zeigen; tripcalToken muss zum Netlify Env EMAIL_INGEST_TOKEN passen.",
+      "notes": "Hier TripCal Endpoint und EMAIL_INGEST_TOKEN eintragen/pruefen. tripcalUrl muss auf /api/ingest-email zeigen; tripcalToken muss zum Netlify Env EMAIL_INGEST_TOKEN passen.",
       "notesInFlow": true
     },
     {

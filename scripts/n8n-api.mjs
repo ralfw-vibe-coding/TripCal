@@ -3,6 +3,7 @@ import fs from "node:fs";
 
 const WORKFLOW_NAME = "TripCal - Email Ingest";
 const WORKFLOW_TEMPLATE_PATH = "n8n-workflows/tripcal-email-ingest.json";
+const DEFAULT_TRIPCAL_EMAIL_INGEST_URL = "https://ralfw-tripcal.netlify.app/api/ingest-email";
 
 const env = readEnv(".env");
 const apiUrl = requiredEnv("N8N_API_URL").replace(/\/$/, "");
@@ -55,7 +56,7 @@ function buildUpdatedWorkflow(workflow) {
 
   const config = findNode(next, "TripCal Config");
   config.parameters.jsCode = config.parameters.jsCode
-    .replace("https://ralfw-tripcal.netlify.app/api/ingest-email-background", requiredEnv("TRIPCAL_EMAIL_INGEST_URL", false) ?? "https://ralfw-tripcal.netlify.app/api/ingest-email-background")
+    .replace(DEFAULT_TRIPCAL_EMAIL_INGEST_URL, requiredEnv("TRIPCAL_EMAIL_INGEST_URL", false) ?? DEFAULT_TRIPCAL_EMAIL_INGEST_URL)
     .replace("REPLACE_WITH_EMAIL_INGEST_TOKEN", "c423b7d9-70d0-43c1-831e-7d6fd843e1b1");
 
   return next;
@@ -80,7 +81,7 @@ function printWorkflowStatus(workflow) {
       },
       config: {
         hasNote: Boolean(config.notesInFlow && config.notes),
-        urlConfigured: config.parameters.jsCode.includes("https://ralfw-tripcal.netlify.app/api/ingest-email-background"),
+        urlConfigured: config.parameters.jsCode.includes(DEFAULT_TRIPCAL_EMAIL_INGEST_URL),
         tokenConfigured: config.parameters.jsCode.includes("c423b7d9-70d0-43c1-831e-7d6fd843e1b1"),
       },
       sendToTripCal: {
