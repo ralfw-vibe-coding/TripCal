@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "postProcessAction": "nothing",
+        "postProcessAction": "read",
         "downloadAttachments": true,
         "format": "resolved",
         "options": {}
@@ -25,7 +25,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first();\nconst json = item.json ?? {};\nconst binary = item.binary ?? {};\n\nconst from = typeof json.from === 'object'\n  ? json.from.text || json.from.value?.[0]?.address || undefined\n  : json.from;\n\nconst baseMessageId = String(json.messageId || json.messageID || json.uid || `${json.date || Date.now()}-${json.subject || 'email'}`);\nconst receivedAt = json.date || json.receivedAt;\nconst subject = json.subject;\nconst text = json.textPlain || json.text || json.bodyText || '';\nconst output = [];\n\nfunction email(partId, partText = '') {\n  return {\n    messageId: `${baseMessageId}#${partId}`,\n    originalMessageId: baseMessageId,\n    from,\n    subject,\n    receivedAt,\n    text: partText,\n  };\n}\n\nif (String(text).trim().length > 0) {\n  output.push({\n    json: {\n      email: email('body', text),\n      attachments: [],\n    },\n  });\n}\n\nlet attachmentIndex = 0;\nfor (const [key, meta] of Object.entries(binary)) {\n  const buffer = await this.helpers.getBinaryDataBuffer(0, key);\n  output.push({\n    json: {\n      email: email(`attachment_${attachmentIndex}`),\n      attachments: [\n        {\n          fileName: meta.fileName || meta.fileNameDecoded || key,\n          mimeType: meta.mimeType || 'application/octet-stream',\n          dataBase64: buffer.toString('base64'),\n        },\n      ],\n    },\n  });\n  attachmentIndex += 1;\n}\n\nreturn output;"
+        "jsCode": "const item = $input.first();\nconst json = item.json ?? {};\nconst binary = item.binary ?? {};\n\nconst from = typeof json.from === 'object'\n  ? json.from.text || json.from.value?.[0]?.address || undefined\n  : json.from;\n\nconst baseMessageId = String(json.messageId || json.messageID || json.uid || `${json.date || Date.now()}-${json.subject || 'email'}`);\nconst receivedAt = json.date || json.receivedAt;\nconst subject = json.subject;\nconst text = json.textPlain || json.text || json.bodyText || '';\nconst output = [];\n\nfunction email(partId, partText = '') {\n  return {\n    messageId: `${baseMessageId}#${partId}`,\n    originalMessageId: baseMessageId,\n    from,\n    subject,\n    receivedAt,\n    text: partText,\n  };\n}\n\nfunction emptyBinary() {\n  return {\n    data: '',\n    mimeType: 'application/octet-stream',\n    fileName: 'empty.txt',\n  };\n}\n\nif (String(text).trim().length > 0) {\n  output.push({\n    json: {\n      email: email('body', text),\n      attachments: [],\n    },\n    binary: {\n      attachment: emptyBinary(),\n    },\n  });\n}\n\nlet attachmentIndex = 0;\nfor (const [key, meta] of Object.entries(binary)) {\n  output.push({\n    json: {\n      email: email(`attachment_${attachmentIndex}`),\n      attachments: [\n        {\n          fileName: meta.fileName || meta.fileNameDecoded || key,\n          mimeType: meta.mimeType || 'application/octet-stream',\n        },\n      ],\n    },\n    binary: {\n      attachment: meta,\n    },\n  });\n  attachmentIndex += 1;\n}\n\nreturn output;"
       },
       "id": "NormalizeEmail",
       "name": "Normalize Email for TripCal",
@@ -38,7 +38,7 @@
     },
     {
       "parameters": {
-        "jsCode": "return $input.all().map((item) => ({\n  json: {\n    tripcalUrl: 'https://ralfw-tripcal.netlify.app/api/ingest-email-background',\n    tripcalToken: 'REPLACE_WITH_EMAIL_INGEST_TOKEN',\n    payload: item.json,\n  },\n}));"
+        "jsCode": "return $input.all().map((item) => ({\n  json: {\n    tripcalUrl: 'https://ralfw-tripcal.netlify.app/api/ingest-email-background',\n    tripcalToken: 'REPLACE_WITH_EMAIL_INGEST_TOKEN',\n    payload: item.json,\n  },\n  binary: item.binary,\n}));"
       },
       "id": "TripCalConfig",
       "name": "TripCal Config",
@@ -47,7 +47,9 @@
       "position": [
         780,
         300
-      ]
+      ],
+      "notes": "Hier TripCal Endpoint und EMAIL_INGEST_TOKEN eintragen/pruefen. tripcalUrl muss auf /api/ingest-email-background zeigen; tripcalToken muss zum Netlify Env EMAIL_INGEST_TOKEN passen.",
+      "notesInFlow": true
     },
     {
       "parameters": {
@@ -59,16 +61,24 @@
             {
               "name": "Authorization",
               "value": "={{ 'Bearer ' + $json.tripcalToken }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "email",
+              "value": "={{ JSON.stringify($json.payload.email) }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "attachment",
+              "inputDataFieldName": "attachment"
+            }
+          ]
+        },
         "options": {
           "timeout": 120000
         }
@@ -85,7 +95,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first();\nconst response = item.json ?? {};\n\nif (!response.error) {\n  return [];\n}\n\nconst config = $('TripCal Config').first().json;\nconst payload = config.payload ?? {};\nconst error = response.error;\n\nreturn [\n  {\n    json: {\n      originalEmail: payload.email,\n      endpoint: config.tripcalUrl,\n      httpStatus: error.httpCode || error.statusCode || error.code || 'request_error',\n      httpStatusText: error.message || error.name || 'TripCal request failed',\n      responseBody: error.description || error.response?.body || error.stack || JSON.stringify(error),\n      attachments: payload.attachments || [],\n    },\n  },\n];"
+        "jsCode": "const responses = $input.all();\nconst configs = $('TripCal Config').all();\nconst failures = [];\n\nfor (let index = 0; index < responses.length; index += 1) {\n  const response = responses[index].json ?? {};\n  if (!response.error) continue;\n\n  const config = configs[index]?.json ?? configs[0]?.json ?? {};\n  const payload = config.payload ?? {};\n  const error = response.error;\n\n  failures.push({\n    json: {\n      originalEmail: payload.email,\n      endpoint: config.tripcalUrl,\n      httpStatus: error.httpCode || error.statusCode || error.status || error.code || 'request_error',\n      httpStatusText: error.message || error.name || 'TripCal request failed',\n      responseBody: error.description || error.response?.body || error.stack || JSON.stringify(error),\n      attachments: payload.attachments || [],\n    },\n  });\n}\n\nreturn failures;"
       },
       "id": "BuildTripCalError",
       "name": "Build TripCal Error",

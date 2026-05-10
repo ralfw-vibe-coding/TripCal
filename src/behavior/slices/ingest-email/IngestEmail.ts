@@ -67,7 +67,7 @@ export class IngestEmail {
       return { status: "rejected", reason: "no_documents", message: "Die E-Mail enthält keinen Text und keine Anhänge." };
     }
 
-    const emailResponse = await this.recordEmailIngestedCommand.process({
+    const emailResponse = await this.recordEmailIngested({
       messageId: request.messageId,
       from: request.from,
       subject: request.subject,
@@ -265,6 +265,18 @@ export class IngestEmail {
       };
     } catch {
       return { status: "failed", message: "Anhang konnte nicht verarbeitet werden." };
+    }
+  }
+
+  private async recordEmailIngested(request: Parameters<RecordEmailIngestedCommand["process"]>[0]) {
+    try {
+      return await this.recordEmailIngestedCommand.process(request);
+    } catch (error) {
+      await this.log("error", "E-Mail-Ingest konnte nicht aufgezeichnet werden", {
+        messageId: request.messageId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      return { status: "failed" as const, reason: "missing_message_id" as const };
     }
   }
 }
