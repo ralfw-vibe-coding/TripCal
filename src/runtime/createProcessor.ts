@@ -17,6 +17,7 @@ import { SubmitDocumentText } from "../behavior/slices/submit-document-text/Subm
 import { ViewBookingCalendar } from "../behavior/slices/view-booking-calendar/ViewBookingCalendar";
 import { ViewTrips } from "../behavior/slices/view-trips/ViewTrips";
 import { AssignBookingToTripCommand } from "../domain/rpus/assign-booking-to-trip-command/AssignBookingToTripCommand";
+import { AutoAssignBookingsToTripsCommand } from "../domain/rpus/auto-assign-bookings-to-trips-command/AutoAssignBookingsToTripsCommand";
 import { ChangeBookingStatusCommand } from "../domain/rpus/change-booking-status-command/ChangeBookingStatusCommand";
 import { CorrectBookingCommand } from "../domain/rpus/correct-booking-command/CorrectBookingCommand";
 import { CreateTripCommand } from "../domain/rpus/create-trip-command/CreateTripCommand";
@@ -62,6 +63,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   const deleteBookingCommand = new DeleteBookingCommand(store, idGenerator, clock);
   const createTripCommand = new CreateTripCommand(store, idGenerator, clock, readInitialTripNumber());
   const assignBookingToTripCommand = new AssignBookingToTripCommand(store, idGenerator, clock);
+  const autoAssignBookingsToTripsCommand = new AutoAssignBookingsToTripsCommand(store, idGenerator);
   const correctBookingCommand = new CorrectBookingCommand(store, idGenerator, clock);
   const changeBookingStatusCommand = new ChangeBookingStatusCommand(store, idGenerator, clock);
   const recordEmailIngestedCommand = new RecordEmailIngestedCommand(store, idGenerator);
@@ -76,6 +78,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
     submitDocumentTextCommand,
     extractionProvider,
     recordExtractedBookingsCommand,
+    autoAssignBookingsToTripsCommand,
   );
   const submitDocumentText = new SubmitDocumentText(recordDocumentTextAndExtractBookings);
   const submitDocumentImage = new SubmitDocumentImage(textExtractionProvider, recordDocumentTextAndExtractBookings);

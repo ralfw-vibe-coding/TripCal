@@ -1,6 +1,7 @@
 import { MemoryEventStore } from "@ricofritzsche/eventstore";
 import { describe, expect, it } from "vitest";
 import { RecordDocumentTextAndExtractBookings } from "../../flows/RecordDocumentTextAndExtractBookings";
+import { AutoAssignBookingsToTripsCommand } from "../../../domain/rpus/auto-assign-bookings-to-trips-command/AutoAssignBookingsToTripsCommand";
 import { RecordExtractedBookingsCommand } from "../../../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
 import { SubmitDocumentTextCommand } from "../../../domain/rpus/submit-document-text-command/SubmitDocumentTextCommand";
 import type { ActivityLogProvider } from "../../../providers/activity-log/ActivityLogProvider";
@@ -68,6 +69,7 @@ describe("SubmitDocumentImage", () => {
       new SubmitDocumentTextCommand(eventStore, ids),
       bookingExtractionProvider,
       new RecordExtractedBookingsCommand(eventStore, ids, new TravelerResolver({ RW: ["Ralf"], AK: ["Ralfs Frau"] })),
+      new AutoAssignBookingsToTripsCommand(eventStore, ids),
     );
     const slice = new SubmitDocumentImage(textExtractionProvider, sharedFlow);
 

@@ -1,6 +1,7 @@
 import { MemoryEventStore } from "@ricofritzsche/eventstore";
 import { describe, expect, it } from "vitest";
 import { RecordDocumentTextAndExtractBookings } from "../../flows/RecordDocumentTextAndExtractBookings";
+import { AutoAssignBookingsToTripsCommand } from "../../../domain/rpus/auto-assign-bookings-to-trips-command/AutoAssignBookingsToTripsCommand";
 import { RecordDocumentFileUploadedCommand } from "../../../domain/rpus/record-document-file-uploaded-command/RecordDocumentFileUploadedCommand";
 import { RecordEmailIngestedCommand } from "../../../domain/rpus/record-email-ingested-command/RecordEmailIngestedCommand";
 import { RecordExtractedBookingsCommand } from "../../../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
@@ -82,6 +83,7 @@ describe("IngestEmail", () => {
       new SubmitDocumentTextCommand(eventStore, ids),
       bookingExtractionProvider,
       new RecordExtractedBookingsCommand(eventStore, ids, new TravelerResolver({ RW: ["Ralf"] })),
+      new AutoAssignBookingsToTripsCommand(eventStore, ids),
     );
     const slice = new IngestEmail(
       clock,

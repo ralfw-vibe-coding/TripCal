@@ -93,6 +93,11 @@ export function App() {
     return <ActivityLogPage />;
   }
 
+  const documentViewerMatch = window.location.pathname.match(/^\/documents\/([^/]+)$/);
+  if (documentViewerMatch) {
+    return <DocumentViewerPage documentFileUploadedId={decodeURIComponent(documentViewerMatch[1])} />;
+  }
+
   const [bookings, setBookings] = useState<CalendarBooking[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [travelerLabels, setTravelerLabels] = useState<string[]>([]);
@@ -580,9 +585,9 @@ export function App() {
                         {booking.sourceDocument ? (
                           <a
                             className="documentLink"
-                            href={`/api/documents/${booking.sourceDocument.documentFileUploadedId}`}
-                            target="_blank"
-                            rel="noreferrer"
+                            href={`/documents/${encodeURIComponent(booking.sourceDocument.documentFileUploadedId)}?name=${encodeURIComponent(
+                              booking.sourceDocument.originalFileName,
+                            )}`}
                           >
                             Originaldokument: {booking.sourceDocument.originalFileName}
                           </a>
@@ -1166,6 +1171,34 @@ export function App() {
       setPendingDeleteBookingId(undefined);
     }
   }
+}
+
+function DocumentViewerPage({ documentFileUploadedId }: { documentFileUploadedId: string }) {
+  const query = new URLSearchParams(window.location.search);
+  const fileName = query.get("name") ?? "Originaldokument";
+  const documentUrl = `/api/documents/${encodeURIComponent(documentFileUploadedId)}`;
+
+  return (
+    <main className="appShell documentViewerShell">
+      <header className="topBar documentViewerTopBar">
+        <div>
+          <div className="eyebrow">Originaldokument</div>
+          <h1>{fileName}</h1>
+        </div>
+        <div className="toolbar">
+          <button className="secondaryLinkButton" type="button" onClick={() => window.history.back()}>
+            Zurück
+          </button>
+          <a className="secondaryLinkButton" href="/">
+            Kalender
+          </a>
+        </div>
+      </header>
+      <section className="documentViewerSurface" aria-label={fileName}>
+        <iframe title={fileName} src={documentUrl} className="documentViewerFrame" />
+      </section>
+    </main>
+  );
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {

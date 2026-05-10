@@ -1,3 +1,4 @@
+import type { AutoAssignBookingsToTripsCommand } from "../../domain/rpus/auto-assign-bookings-to-trips-command/AutoAssignBookingsToTripsCommand";
 import type { RecordExtractedBookingsCommand } from "../../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
 import type { SubmitDocumentTextCommand } from "../../domain/rpus/submit-document-text-command/SubmitDocumentTextCommand";
 import type { ActivityLogProvider } from "../../providers/activity-log/ActivityLogProvider";
@@ -43,6 +44,7 @@ export class RecordDocumentTextAndExtractBookings {
     private readonly submitDocumentTextCommand: SubmitDocumentTextCommand,
     private readonly bookingExtractionProvider: BookingExtractionProvider,
     private readonly recordExtractedBookingsCommand: RecordExtractedBookingsCommand,
+    private readonly autoAssignBookingsToTripsCommand: AutoAssignBookingsToTripsCommand,
   ) {}
 
   async process(
@@ -147,6 +149,17 @@ export class RecordDocumentTextAndExtractBookings {
       ...documentDetails,
       documentTextRecordedId: submitResponse.documentTextRecordedId,
       bookingExtractedIds: recordResponse.bookingExtractedIds,
+    });
+
+    const autoAssignmentResponse = await this.autoAssignBookingsToTripsCommand.process({
+      bookingExtractedIds: recordResponse.bookingExtractedIds,
+      assignedAt: this.clock.now().toISOString(),
+    });
+    await this.log("info", "Automatische Trip-Zuordnung abgeschlossen", {
+      ...documentDetails,
+      documentTextRecordedId: submitResponse.documentTextRecordedId,
+      assignedCount: autoAssignmentResponse.bookingAssignedToTripIds.length,
+      skipped: autoAssignmentResponse.skipped,
     });
 
     return {

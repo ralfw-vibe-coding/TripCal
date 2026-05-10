@@ -3,6 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import { RecordDocumentTextAndExtractBookings } from "../../flows/RecordDocumentTextAndExtractBookings";
+import { AutoAssignBookingsToTripsCommand } from "../../../domain/rpus/auto-assign-bookings-to-trips-command/AutoAssignBookingsToTripsCommand";
 import { RecordDocumentFileUploadedCommand } from "../../../domain/rpus/record-document-file-uploaded-command/RecordDocumentFileUploadedCommand";
 import { RecordExtractedBookingsCommand } from "../../../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
 import { SubmitDocumentTextCommand } from "../../../domain/rpus/submit-document-text-command/SubmitDocumentTextCommand";
@@ -73,6 +74,7 @@ describe("SubmitDocumentFiles", () => {
       new SubmitDocumentTextCommand(eventStore, ids),
       bookingExtractionProvider,
       new RecordExtractedBookingsCommand(eventStore, ids, new TravelerResolver({ RW: ["Ralf"], AK: ["Ralfs Frau"] })),
+      new AutoAssignBookingsToTripsCommand(eventStore, ids),
     );
     const slice = new SubmitDocumentFiles(
       clock,
