@@ -691,7 +691,7 @@ export function App() {
                   <Upload size={30} />
                   <span>Ziehe Dokumente hierher oder klicke hier, um sie auszuwählen.</span>
                 </button>
-                <input ref={fileInputRef} type="file" multiple hidden onChange={handleFileInputChange} />
+                <input ref={fileInputRef} type="file" accept=".pdf,application/pdf" multiple hidden onChange={handleFileInputChange} />
                 {pendingFiles.length > 0 ? (
                   <div className="fileList">
                     {pendingFiles.map((file) => (
@@ -1143,12 +1143,20 @@ export function App() {
 
   async function addFiles(files: File[]) {
     if (files.length === 0) return;
-    const inputs = await Promise.all(files.map(toPendingFile));
+    const acceptedFiles = files.filter((file) => isSupportedUploadFile(file.name));
+    const rejectedFiles = files.filter((file) => !isSupportedUploadFile(file.name));
+    if (rejectedFiles.length > 0) {
+      setFormError(`Nur PDF-Dateien können hochgeladen werden: ${rejectedFiles.map((file) => file.name).join(", ")}`);
+    } else {
+      setFormError(undefined);
+    }
+    if (acceptedFiles.length === 0) return;
+
+    const inputs = await Promise.all(acceptedFiles.map(toPendingFile));
     setPendingFiles((current) => [...current, ...inputs]);
     setText("");
     setPastedImage(undefined);
     setSubmitTab("files");
-    setFormError(undefined);
     setMessage(undefined);
   }
 
@@ -1224,6 +1232,10 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function isSupportedUploadFile(fileName: string): boolean {
+  return fileName.trim().toLowerCase().endsWith(".pdf");
 }
 
 function BookingTypeIcon({ type }: { type: CalendarBooking["type"] }) {

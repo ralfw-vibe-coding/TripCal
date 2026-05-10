@@ -88,8 +88,8 @@ describe("SubmitDocumentFiles", () => {
     const response = await slice.process({
       files: [
         {
-          fileName: "hotel.txt",
-          mimeType: "text/plain",
+          fileName: "hotel.pdf",
+          mimeType: "application/pdf",
           dataBase64: Buffer.from("Hotel booking").toString("base64"),
           dataUrl: "data:text/plain;base64,SG90ZWwgYm9va2luZw==",
         },

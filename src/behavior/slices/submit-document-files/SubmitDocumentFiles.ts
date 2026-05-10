@@ -26,7 +26,7 @@ export type SubmitDocumentFilesResponse =
     }
   | {
       status: "rejected";
-      reason: "no_files" | "file_processing_failed";
+      reason: "no_files" | "file_processing_failed" | "unsupported_file_type";
       message: string;
     };
 
@@ -96,6 +96,16 @@ export class SubmitDocumentFiles {
         fileName: file.fileName,
         mimeType: file.mimeType,
       });
+
+      if (!isSupportedDocumentFile(file.fileName)) {
+        await this.log("warning", "Dateiupload abgelehnt: Dateityp nicht unterstützt", {
+          documentName,
+          fileName: file.fileName,
+          mimeType: file.mimeType,
+          allowedExtensions: [".pdf"],
+        });
+        return { status: "failed", message: "Nur PDF-Dateien können hochgeladen werden." };
+      }
 
       const stored = await this.fileStorageProvider.storeFile({
         originalFileName: file.fileName,
@@ -195,4 +205,8 @@ export class SubmitDocumentFiles {
       // Activity logging must not block document processing.
     }
   }
+}
+
+function isSupportedDocumentFile(fileName: string): boolean {
+  return fileName.trim().toLowerCase().endsWith(".pdf");
 }

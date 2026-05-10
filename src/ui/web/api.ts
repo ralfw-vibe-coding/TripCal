@@ -49,7 +49,7 @@ export async function submitDocumentImage(imageDataUrl: string, mimeType: string
 }
 
 export async function submitDocumentFiles(files: SubmitDocumentFileInput[]): Promise<SubmitDocumentFilesResponse> {
-  const results = await Promise.all(files.map((file) => submitOneDocumentFile(file)));
+  const results = await Promise.all(files.map((file) => submitOneDocumentFileSafely(file)));
   const accepted = results.filter((result): result is Extract<SubmitDocumentFilesResponse, { status: "accepted" }> => result.status === "accepted");
   const rejected = results.filter((result): result is Extract<SubmitDocumentFilesResponse, { status: "rejected" }> => result.status === "rejected");
 
@@ -84,6 +84,18 @@ async function submitOneDocumentFile(file: SubmitDocumentFileInput): Promise<Sub
     throw new Error(`${file.fileName} konnte nicht eingereicht werden.`);
   }
   return body;
+}
+
+async function submitOneDocumentFileSafely(file: SubmitDocumentFileInput): Promise<SubmitDocumentFilesResponse> {
+  try {
+    return await submitOneDocumentFile(file);
+  } catch (error) {
+    return {
+      status: "rejected",
+      reason: "file_processing_failed",
+      message: error instanceof Error ? error.message : `${file.fileName} konnte nicht eingereicht werden.`,
+    };
+  }
 }
 
 async function readJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {

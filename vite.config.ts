@@ -136,9 +136,21 @@ function tripCalApiPlugin() {
           return;
         }
         const body = await readJsonBody(request);
+        const files = Array.isArray(body.files) ? body.files.map(toFileInput) : [];
+        const validation = validateDocumentFiles(files);
+        if (validation.status === "rejected") {
+          sendJson(response, 415, {
+            status: "rejected",
+            reason: "unsupported_file_type",
+            message: validation.message,
+            unsupportedFileNames: validation.unsupportedFileNames,
+          });
+          return;
+        }
+
         const runtime = await getProcessorRuntime();
         const result = await runtime.processor.submitDocumentFiles({
-          files: Array.isArray(body.files) ? body.files.map(toFileInput) : [],
+          files,
         });
         sendJson(response, result.status === "accepted" ? 200 : 400, result);
       });
@@ -154,8 +166,20 @@ function tripCalApiPlugin() {
           return;
         }
         const body = await readJsonBody(request);
+        const ingestRequest = toIngestEmailRequest(body);
+        const validation = validateDocumentFiles(ingestRequest.attachments);
+        if (validation.status === "rejected") {
+          sendJson(response, 415, {
+            status: "rejected",
+            reason: "unsupported_file_type",
+            message: validation.message,
+            unsupportedFileNames: validation.unsupportedFileNames,
+          });
+          return;
+        }
+
         const runtime = await getProcessorRuntime();
-        const result = await runtime.processor.ingestEmail(toIngestEmailRequest(body));
+        const result = await runtime.processor.ingestEmail(ingestRequest);
         sendJson(response, result.status === "accepted" ? 200 : 400, result);
       });
 
@@ -229,6 +253,22 @@ function toEmailAttachmentInput(value: unknown) {
     fileName: String(record.fileName ?? record.filename ?? record.name ?? ""),
     mimeType: String(record.mimeType ?? record.contentType ?? record.type ?? "application/octet-stream"),
     dataBase64: String(record.dataBase64 ?? record.data ?? record.content ?? ""),
+  };
+}
+
+function validateDocumentFiles(files: Array<{ fileName: string }>) {
+  const unsupportedFileNames = files
+    .map((file) => file.fileName)
+    .filter((fileName) => !fileName.trim().toLowerCase().endsWith(".pdf"));
+
+  if (unsupportedFileNames.length === 0) {
+    return { status: "accepted" as const };
+  }
+
+  return {
+    status: "rejected" as const,
+    unsupportedFileNames,
+    message: `Nur PDF-Dateien werden akzeptiert: ${unsupportedFileNames.join(", ")}`,
   };
 }
 

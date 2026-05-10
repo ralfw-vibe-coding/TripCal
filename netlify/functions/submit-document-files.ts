@@ -1,4 +1,5 @@
 import { getProcessorRuntime } from "../../src/runtime/singleton";
+import { validateDocumentFiles } from "./_shared/document-file-validation";
 
 type NetlifyEvent = {
   httpMethod: string;
@@ -11,9 +12,20 @@ export async function handler(event: NetlifyEvent) {
   }
 
   const body = parseBody(event.body);
+  const files = Array.isArray(body.files) ? body.files.map(toFileInput) : [];
+  const validation = validateDocumentFiles(files);
+  if (validation.status === "rejected") {
+    return json(415, {
+      status: "rejected",
+      reason: "unsupported_file_type",
+      message: validation.message,
+      unsupportedFileNames: validation.unsupportedFileNames,
+    });
+  }
+
   const runtime = await getProcessorRuntime();
   const response = await runtime.processor.submitDocumentFiles({
-    files: Array.isArray(body.files) ? body.files.map(toFileInput) : [],
+    files,
   });
   return json(response.status === "accepted" ? 200 : 400, response);
 }

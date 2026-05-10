@@ -1,3 +1,4 @@
+import { validateDocumentFiles } from "./_shared/document-file-validation";
 import { parseIngestEmailRequest } from "./_shared/ingest-email-request";
 import { runEmailIngest } from "./_shared/run-email-ingest";
 
@@ -18,6 +19,16 @@ export default async (request: Request) => {
     return json(400, {
       message: "E-Mail-Ingest konnte nicht gelesen werden.",
       error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+
+  const validation = validateDocumentFiles(ingestRequest.attachments);
+  if (validation.status === "rejected") {
+    return json(415, {
+      status: "rejected",
+      reason: "unsupported_file_type",
+      message: validation.message,
+      unsupportedFileNames: validation.unsupportedFileNames,
     });
   }
 

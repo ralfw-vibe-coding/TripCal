@@ -154,6 +154,18 @@ export class IngestEmail {
         fileName: attachment.fileName,
         mimeType: attachment.mimeType,
       });
+      if (!isSupportedDocumentFile(attachment.fileName)) {
+        await this.log("warning", "E-Mail-Anhang abgelehnt: Dateityp nicht unterstützt", {
+          documentName,
+          messageId: request.messageId,
+          fileName: attachment.fileName,
+          mimeType: attachment.mimeType,
+          allowedExtensions: [".pdf"],
+        });
+        warnings.push(`${attachment.fileName}: Nur PDF-Dateien können als E-Mail-Anhang verarbeitet werden.`);
+        continue;
+      }
+
       const result = await this.processOneAttachment(emailResponse.emailIngestedId, attachment, documentName);
       if (result.status === "failed") {
         await this.log("warning", "E-Mail-Anhang konnte nicht verarbeitet werden", {
@@ -333,4 +345,8 @@ function describeIngestRequest(request: IngestEmailRequest): string {
   if (request.attachments.length > 1) return `E-Mail mit ${request.attachments.length} Anhängen`;
   if (hasUsableText(request.text)) return `E-Mail-Text: ${request.subject ?? request.messageId}`;
   return `E-Mail: ${request.subject ?? request.messageId}`;
+}
+
+function isSupportedDocumentFile(fileName: string): boolean {
+  return fileName.trim().toLowerCase().endsWith(".pdf");
 }
