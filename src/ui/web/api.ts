@@ -49,16 +49,51 @@ export async function submitDocumentImage(imageDataUrl: string, mimeType: string
 }
 
 export async function submitDocumentFiles(files: SubmitDocumentFileInput[]): Promise<SubmitDocumentFilesResponse> {
+  const results = await Promise.all(files.map((file) => submitOneDocumentFile(file)));
+  const accepted = results.filter((result): result is Extract<SubmitDocumentFilesResponse, { status: "accepted" }> => result.status === "accepted");
+  const rejected = results.filter((result): result is Extract<SubmitDocumentFilesResponse, { status: "rejected" }> => result.status === "rejected");
+
+  if (accepted.length === 0) {
+    return {
+      status: "rejected",
+      reason: "file_processing_failed",
+      message: rejected.map((result) => result.message).join("\n") || "Dateien konnten nicht eingereicht werden.",
+    };
+  }
+
+  return {
+    status: "accepted",
+    documentFileUploadedIds: accepted.flatMap((result) => result.documentFileUploadedIds),
+    documentTextRecordedIds: accepted.flatMap((result) => result.documentTextRecordedIds),
+    bookingExtractedIds: accepted.flatMap((result) => result.bookingExtractedIds),
+    warnings: [
+      ...accepted.flatMap((result) => result.warnings ?? []),
+      ...rejected.map((result) => result.message),
+    ].filter(Boolean),
+  };
+}
+
+async function submitOneDocumentFile(file: SubmitDocumentFileInput): Promise<SubmitDocumentFilesResponse> {
   const response = await fetch("/api/submit-document-files", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ files }),
+    body: JSON.stringify({ files: [file] }),
   });
-  const body = (await response.json()) as SubmitDocumentFilesResponse;
+  const body = await readJsonResponse<SubmitDocumentFilesResponse>(response, `${file.fileName} konnte nicht eingereicht werden.`);
   if (!response.ok && body.status !== "rejected") {
-    throw new Error("Dateien konnten nicht eingereicht werden.");
+    throw new Error(`${file.fileName} konnte nicht eingereicht werden.`);
   }
   return body;
+}
+
+async function readJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return (await response.json()) as T;
+  }
+
+  const text = await response.text();
+  throw new Error(text.trim().startsWith("<") ? fallbackMessage : text || fallbackMessage);
 }
 
 export async function deleteBooking(bookingExtractedId: string): Promise<DeleteBookingResponse> {

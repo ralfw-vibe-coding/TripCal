@@ -95,6 +95,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   );
   const submitDocumentFiles = new SubmitDocumentFiles(
     clock,
+    activityLogProvider,
     fileStorageProvider,
     textExtractionProvider,
     recordDocumentFileUploadedCommand,

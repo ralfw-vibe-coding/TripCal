@@ -76,6 +76,7 @@ describe("SubmitDocumentFiles", () => {
     );
     const slice = new SubmitDocumentFiles(
       clock,
+      activityLogProvider,
       new LocalFileStorageProvider(storageDir, ids),
       textExtractionProvider,
       new RecordDocumentFileUploadedCommand(eventStore, ids),
