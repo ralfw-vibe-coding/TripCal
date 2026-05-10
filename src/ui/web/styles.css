@@ -879,38 +879,62 @@ h1 {
   width: fit-content;
   max-width: 100%;
   margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: #2563a9;
   font-size: 1rem;
   font-weight: 400;
   line-height: 1.45;
   text-decoration: none;
   overflow-wrap: anywhere;
+  cursor: pointer;
 }
 
 .documentLink:hover {
   text-decoration: underline;
 }
 
-.documentViewerShell {
-  width: min(1180px, calc(100vw - 28px));
-  min-height: 100vh;
+.documentViewerBackdrop {
+  align-items: stretch;
+  padding: 14px;
 }
 
-.documentViewerTopBar {
+.documentViewerDialog {
+  display: flex;
+  flex-direction: column;
+  width: min(1120px, calc(100vw - 28px));
+  max-height: calc(100vh - 28px);
+  margin: auto;
+  overflow: hidden;
+  border: 1px solid #cfd8d5;
+  border-radius: 10px;
+  background: #f7faf8;
+  box-shadow: 0 24px 80px rgba(9, 19, 16, 0.25);
+}
+
+.documentViewerHeader {
+  display: flex;
   align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #dbe3e0;
 }
 
-.documentViewerTopBar h1 {
-  max-width: min(760px, calc(100vw - 32px));
+.documentViewerHeader h2 {
+  max-width: min(820px, calc(100vw - 92px));
+  margin: 0;
+  color: #18201f;
+  font-size: clamp(1.05rem, 2.6vw, 1.35rem);
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
 .documentViewerSurface {
-  height: calc(100vh - 140px);
-  min-height: 520px;
+  height: min(76vh, 820px);
+  min-height: 420px;
   overflow: hidden;
-  border: 1px solid #cfd8d5;
-  border-radius: 8px;
   background: #ffffff;
 }
 

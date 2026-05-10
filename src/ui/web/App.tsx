@@ -88,14 +88,14 @@ type BookingEditForm = {
   details: string;
 };
 
+type ViewedDocument = {
+  documentFileUploadedId: string;
+  originalFileName: string;
+};
+
 export function App() {
   if (window.location.pathname === "/log") {
     return <ActivityLogPage />;
-  }
-
-  const documentViewerMatch = window.location.pathname.match(/^\/documents\/([^/]+)$/);
-  if (documentViewerMatch) {
-    return <DocumentViewerPage documentFileUploadedId={decodeURIComponent(documentViewerMatch[1])} />;
   }
 
   const [bookings, setBookings] = useState<CalendarBooking[]>([]);
@@ -113,6 +113,7 @@ export function App() {
   const [isCreatingTrip, setIsCreatingTrip] = useState(false);
   const [editingBooking, setEditingBooking] = useState<CalendarBooking | undefined>();
   const [bookingEditForm, setBookingEditForm] = useState<BookingEditForm | undefined>();
+  const [viewingDocument, setViewingDocument] = useState<ViewedDocument | undefined>();
   const [isCorrectingBooking, setIsCorrectingBooking] = useState(false);
   const [tripForm, setTripForm] = useState({
     shortCode: "",
@@ -583,14 +584,13 @@ export function App() {
                         ) : null}
                         <pre className="details">{booking.details}</pre>
                         {booking.sourceDocument ? (
-                          <a
+                          <button
                             className="documentLink"
-                            href={`/documents/${encodeURIComponent(booking.sourceDocument.documentFileUploadedId)}?name=${encodeURIComponent(
-                              booking.sourceDocument.originalFileName,
-                            )}`}
+                            type="button"
+                            onClick={() => setViewingDocument(booking.sourceDocument)}
                           >
                             Originaldokument: {booking.sourceDocument.originalFileName}
-                          </a>
+                          </button>
                         ) : null}
                         <div className="bookingExpandedControls">
                           <label className="tripAssignControl">
@@ -1047,6 +1047,9 @@ export function App() {
           </section>
         </div>
       ) : null}
+      {viewingDocument ? (
+        <DocumentViewerOverlay document={viewingDocument} onClose={() => setViewingDocument(undefined)} />
+      ) : null}
     </main>
   );
 
@@ -1173,31 +1176,26 @@ export function App() {
   }
 }
 
-function DocumentViewerPage({ documentFileUploadedId }: { documentFileUploadedId: string }) {
-  const query = new URLSearchParams(window.location.search);
-  const fileName = query.get("name") ?? "Originaldokument";
-  const documentUrl = `/api/documents/${encodeURIComponent(documentFileUploadedId)}`;
+function DocumentViewerOverlay({ document, onClose }: { document: ViewedDocument; onClose: () => void }) {
+  const documentUrl = `/api/documents/${encodeURIComponent(document.documentFileUploadedId)}`;
 
   return (
-    <main className="appShell documentViewerShell">
-      <header className="topBar documentViewerTopBar">
-        <div>
-          <div className="eyebrow">Originaldokument</div>
-          <h1>{fileName}</h1>
-        </div>
-        <div className="toolbar">
-          <button className="secondaryLinkButton" type="button" onClick={() => window.history.back()}>
-            Zurück
+    <div className="dialogBackdrop documentViewerBackdrop" onClick={onClose}>
+      <section className="documentViewerDialog" aria-label="Originaldokument" onClick={(event) => event.stopPropagation()}>
+        <header className="documentViewerHeader">
+          <div>
+            <div className="eyebrow">Originaldokument</div>
+            <h2>{document.originalFileName}</h2>
+          </div>
+          <button className="iconButton" type="button" onClick={onClose} title="Dokument schließen">
+            <X size={18} />
           </button>
-          <a className="secondaryLinkButton" href="/">
-            Kalender
-          </a>
+        </header>
+        <div className="documentViewerSurface">
+          <iframe title={document.originalFileName} src={documentUrl} className="documentViewerFrame" />
         </div>
-      </header>
-      <section className="documentViewerSurface" aria-label={fileName}>
-        <iframe title={fileName} src={documentUrl} className="documentViewerFrame" />
       </section>
-    </main>
+    </div>
   );
 }
 
