@@ -84,10 +84,10 @@ function printWorkflowStatus(workflow) {
         tokenConfigured: config.parameters.jsCode.includes("c423b7d9-70d0-43c1-831e-7d6fd843e1b1"),
       },
       sendToTripCal: {
-        contentType: send.parameters.contentType,
+        bodyMode: send.parameters.specifyBody,
         hasJsonContentTypeHeader: JSON.stringify(send.parameters.headerParameters ?? {}).includes("Content-Type"),
-        hasMultipartEmailField: JSON.stringify(send.parameters.bodyParameters ?? {}).includes('"name":"email"'),
-        hasMultipartBinaryField: JSON.stringify(send.parameters.bodyParameters ?? {}).includes("formBinaryData"),
+        sendsJsonPayload: typeof send.parameters.jsonBody === "string" && send.parameters.jsonBody.includes("$json.payload"),
+        usesMultipart: send.parameters.contentType === "multipart-form-data",
       },
       errorHandling: {
         checksAllItems: error.parameters.jsCode.includes("$input.all()") && error.parameters.jsCode.includes("for (let index = 0;"),
