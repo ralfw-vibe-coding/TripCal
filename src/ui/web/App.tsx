@@ -529,43 +529,45 @@ export function App() {
                         <h2>{bookingPrimary(booking)}</h2>
                         {bookingSecondary(booking) ? <div className="bookingSecondary">{bookingSecondary(booking)}</div> : null}
                       </div>
-                      {booking.travelers.length > 0 ? <TravelerBadges travelers={booking.travelers} /> : null}
-                      {booking.trip ? <TripChip trip={booking.trip} /> : null}
-                      {booking.status === "inbox" ? <span className="statusPill">Inbox</span> : null}
-                      <button
-                        className="editButton"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openBookingEditor(booking);
-                        }}
-                        title="Buchung bearbeiten"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        className={pendingDeleteBookingId === booking.bookingExtractedId ? "deleteButton confirm" : "deleteButton"}
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleDeleteBooking(booking.bookingExtractedId);
-                        }}
-                        title={pendingDeleteBookingId === booking.bookingExtractedId ? "Löschen bestätigen" : "Buchung löschen"}
-                      >
-                        {pendingDeleteBookingId === booking.bookingExtractedId ? "?" : <Trash2 size={16} />}
-                      </button>
-                      <button
-                        className="expandButton"
-                        type="button"
-                        onClick={() => toggleBookingExpanded(booking.bookingExtractedId)}
-                        title={expandedBookingIds.has(booking.bookingExtractedId) ? "Einklappen" : "Aufklappen"}
-                      >
-                        {expandedBookingIds.has(booking.bookingExtractedId) ? (
-                          <ChevronDown size={18} />
-                        ) : (
-                          <ChevronRight size={18} />
-                        )}
-                      </button>
+                      <div className="bookingCompactControls">
+                        {booking.travelers.length > 0 ? <TravelerBadges travelers={booking.travelers} /> : null}
+                        {booking.trip ? <TripChip trip={booking.trip} /> : null}
+                        {booking.status === "inbox" ? <span className="statusPill">Inbox</span> : null}
+                        <button
+                          className="editButton"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openBookingEditor(booking);
+                          }}
+                          title="Buchung bearbeiten"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          className={pendingDeleteBookingId === booking.bookingExtractedId ? "deleteButton confirm" : "deleteButton"}
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleDeleteBooking(booking.bookingExtractedId);
+                          }}
+                          title={pendingDeleteBookingId === booking.bookingExtractedId ? "Löschen bestätigen" : "Buchung löschen"}
+                        >
+                          {pendingDeleteBookingId === booking.bookingExtractedId ? "?" : <Trash2 size={16} />}
+                        </button>
+                        <button
+                          className="expandButton"
+                          type="button"
+                          onClick={() => toggleBookingExpanded(booking.bookingExtractedId)}
+                          title={expandedBookingIds.has(booking.bookingExtractedId) ? "Einklappen" : "Aufklappen"}
+                        >
+                          {expandedBookingIds.has(booking.bookingExtractedId) ? (
+                            <ChevronDown size={18} />
+                          ) : (
+                            <ChevronRight size={18} />
+                          )}
+                        </button>
+                      </div>
                     </div>
                     {expandedBookingIds.has(booking.bookingExtractedId) ? (
                       <div className="bookingExpanded">
