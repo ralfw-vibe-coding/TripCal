@@ -546,6 +546,31 @@ h1 {
   gap: 6px;
 }
 
+.pastFilter {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.pastFilter span {
+  color: #5b6f6a;
+  font-size: 0.76rem;
+}
+
+.pastFilter select {
+  min-height: 31px;
+  border: 1px solid #cfd8d5;
+  border-radius: 999px;
+  padding: 0 28px 0 10px;
+  background: #ffffff;
+  color: #40504d;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 .filterModeButton {
   min-height: 31px;
   border: 1px solid #cfd8d5;
@@ -1410,6 +1435,16 @@ textarea {
   .calendarSurface {
     padding-left: 0;
     border-left: 0;
+  }
+
+  .calendarFilters {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .pastFilter {
+    margin-left: 0;
   }
 
   .tripSidebar {

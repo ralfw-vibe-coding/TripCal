@@ -69,6 +69,7 @@ type PendingFile = {
 type SubmitTab = "files" | "text";
 type CalendarFilterMode = "traveler" | "trip";
 type MainView = "calendar" | "reports";
+type PastBookingWindow = "none" | "7" | "30" | "all";
 
 type ActivityLogTableRow =
   | { type: "entry"; entry: ActivityLogEntry }
@@ -130,6 +131,7 @@ export function App() {
   const [calendarFilterMode, setCalendarFilterMode] = useState<CalendarFilterMode>("traveler");
   const [selectedTravelerFilters, setSelectedTravelerFilters] = useState<string[]>([]);
   const [selectedTripFilter, setSelectedTripFilter] = useState<string | undefined>();
+  const [pastBookingWindow, setPastBookingWindow] = useState<PastBookingWindow>("none");
   const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(() => new Set());
   const [expandedReportTripIds, setExpandedReportTripIds] = useState<Set<string>>(() => new Set());
   const [pendingDeleteBookingId, setPendingDeleteBookingId] = useState<string | undefined>();
@@ -340,6 +342,7 @@ export function App() {
   function clearCalendarFilters() {
     setSelectedTravelerFilters([]);
     setSelectedTripFilter(undefined);
+    setPastBookingWindow("none");
   }
 
   function toggleReportTripExpanded(id: string) {
@@ -359,8 +362,9 @@ export function App() {
       mode: calendarFilterMode,
       selectedTravelers: selectedTravelerFilters,
       selectedTrip: selectedTripFilter,
+      pastWindow: pastBookingWindow,
     }),
-    [bookings, calendarFilterMode, selectedTravelerFilters, selectedTripFilter],
+    [bookings, calendarFilterMode, selectedTravelerFilters, selectedTripFilter, pastBookingWindow],
   );
   const groupedBookings = useMemo(() => groupBookingsByDate(filteredBookings), [filteredBookings]);
   const bookingEditTravelerLabels = useMemo(
@@ -502,12 +506,22 @@ export function App() {
                   {trip.shortCode}
                 </button>
               ))}
-              {selectedTravelerFilters.length > 0 || selectedTripFilter ? (
+              {selectedTravelerFilters.length > 0 || selectedTripFilter || pastBookingWindow !== "none" ? (
                 <button className="clearFilterButton" type="button" onClick={clearCalendarFilters} title="Filter zurücksetzen">
                   <X size={15} />
                 </button>
               ) : null}
             </div>
+
+            <label className="pastFilter">
+              <span>Buchungen ab</span>
+              <select value={pastBookingWindow} onChange={(event) => setPastBookingWindow(event.target.value as PastBookingWindow)}>
+                <option value="none">heute</option>
+                <option value="7">- 7 Tage</option>
+                <option value="30">- 30 Tage</option>
+                <option value="all">Alle</option>
+              </select>
+            </label>
           </div>
           {isLoadingCalendar ? (
             <div className="emptyState">
@@ -1773,16 +1787,48 @@ type BookingGroup = {
 
 function filterBookings(
   bookings: CalendarBooking[],
-  filter: { mode: CalendarFilterMode; selectedTravelers: string[]; selectedTrip: string | undefined },
+  filter: {
+    mode: CalendarFilterMode;
+    selectedTravelers: string[];
+    selectedTrip: string | undefined;
+    pastWindow: PastBookingWindow;
+  },
 ): CalendarBooking[] {
+  const visibleBookings = filterByPastWindow(bookings, filter.pastWindow);
+
   if (filter.mode === "trip") {
-    if (!filter.selectedTrip) return bookings;
-    return bookings.filter((booking) => booking.trip?.tripCreatedId === filter.selectedTrip);
+    if (!filter.selectedTrip) return visibleBookings;
+    return visibleBookings.filter((booking) => booking.trip?.tripCreatedId === filter.selectedTrip);
   }
 
-  if (filter.selectedTravelers.length === 0) return bookings;
+  if (filter.selectedTravelers.length === 0) return visibleBookings;
   const selected = new Set(filter.selectedTravelers);
-  return bookings.filter((booking) => booking.travelers.some((traveler) => selected.has(traveler)));
+  return visibleBookings.filter((booking) => booking.travelers.some((traveler) => selected.has(traveler)));
+}
+
+function filterByPastWindow(bookings: CalendarBooking[], pastWindow: PastBookingWindow): CalendarBooking[] {
+  if (pastWindow === "all") return bookings;
+  const cutoff = dateDaysBefore(todayDateString(), pastWindow === "30" ? 30 : pastWindow === "7" ? 7 : 0);
+  return bookings.filter((booking) => booking.start.value.slice(0, 10) >= cutoff);
+}
+
+function todayDateString(): string {
+  const today = new Date();
+  return [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function dateDaysBefore(date: string, days: number): string {
+  const value = new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)));
+  value.setDate(value.getDate() - days);
+  return [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, "0"),
+    String(value.getDate()).padStart(2, "0"),
+  ].join("-");
 }
 
 function groupBookingsByDate(bookings: CalendarBooking[]): BookingGroup[] {
