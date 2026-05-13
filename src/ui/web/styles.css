@@ -155,7 +155,7 @@ h1 {
 
 .calendarLayout {
   display: grid;
-  grid-template-columns: 158px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 158px) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -168,6 +168,7 @@ h1 {
 }
 
 .tripSidebar {
+  min-width: 0;
   position: sticky;
   top: 18px;
   border-top: 1px solid #d7dedb;
@@ -199,6 +200,7 @@ h1 {
 }
 
 .tripList {
+  min-width: 0;
   display: grid;
   gap: 8px;
 }
@@ -209,6 +211,9 @@ h1 {
 }
 
 .tripListItem {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 7px 8px 7px 9px;
   border-left: 4px solid #71817d;
   background: #ffffff;
@@ -251,6 +256,12 @@ h1 {
   display: flex;
   align-items: baseline;
   gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tripListTitle strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .tripListNumber {
@@ -261,6 +272,7 @@ h1 {
 
 .tripListDates {
   margin-top: 3px;
+  overflow-wrap: anywhere;
   color: #71817d;
   font-size: 0.72rem;
 }
