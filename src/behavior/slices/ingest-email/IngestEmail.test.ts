@@ -1,9 +1,12 @@
 import { MemoryEventStore } from "@ricofritzsche/eventstore";
 import { describe, expect, it } from "vitest";
-import { RecordDocumentTextAndExtractBookings } from "../../flows/RecordDocumentTextAndExtractBookings";
 import { AutoAssignBookingsToTripsCommand } from "../../../domain/rpus/auto-assign-bookings-to-trips-command/AutoAssignBookingsToTripsCommand";
+import { GetEmailBookingCandidatesQuery } from "../../../domain/rpus/get-email-booking-candidates-query/GetEmailBookingCandidatesQuery";
+import { GetEmailIngestProgressQuery } from "../../../domain/rpus/get-email-ingest-progress-query/GetEmailIngestProgressQuery";
+import { MarkEmailIngestGatheredCommand } from "../../../domain/rpus/mark-email-ingest-gathered-command/MarkEmailIngestGatheredCommand";
 import { RecordDocumentFileUploadedCommand } from "../../../domain/rpus/record-document-file-uploaded-command/RecordDocumentFileUploadedCommand";
-import { RecordEmailIngestedCommand } from "../../../domain/rpus/record-email-ingested-command/RecordEmailIngestedCommand";
+import { RecordEmailBookingCandidatesCommand } from "../../../domain/rpus/record-email-booking-candidates-command/RecordEmailBookingCandidatesCommand";
+import { RecordEmailPartReceivedCommand } from "../../../domain/rpus/record-email-part-received-command/RecordEmailPartReceivedCommand";
 import { RecordExtractedBookingsCommand } from "../../../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
 import { SubmitDocumentTextCommand } from "../../../domain/rpus/submit-document-text-command/SubmitDocumentTextCommand";
 import type { ActivityLogProvider } from "../../../providers/activity-log/ActivityLogProvider";
@@ -73,34 +76,80 @@ const activityLogProvider: ActivityLogProvider = {
 };
 
 describe("IngestEmail", () => {
-  it("records email text and attachments with references to the ingested email", async () => {
+  it("records candidates per email part and gathers final deduplicated bookings after the last part", async () => {
     const eventStore = new MemoryEventStore();
-    const ids = new FixedIds(["email-1", "email-text-1", "booking-1", "file-1", "file-text-1", "booking-2"]);
+    const ids = new FixedIds([
+      "part-body",
+      "email-text-1",
+      "candidate-body",
+      "processed-body",
+      "part-attachment",
+      "file-1",
+      "file-text-1",
+      "candidate-attachment",
+      "processed-attachment",
+      "booking-1",
+      "gathered-1",
+    ]);
     const clock = new FixedClock();
-    const sharedFlow = new RecordDocumentTextAndExtractBookings(
-      clock,
-      activityLogProvider,
-      new SubmitDocumentTextCommand(eventStore, ids),
-      bookingExtractionProvider,
-      new RecordExtractedBookingsCommand(eventStore, ids, new TravelerResolver({ RW: ["Ralf"] })),
-      new AutoAssignBookingsToTripsCommand(eventStore, ids),
-    );
     const slice = new IngestEmail(
       clock,
       fileStorageProvider,
       textExtractionProvider,
+      bookingExtractionProvider,
       activityLogProvider,
-      new RecordEmailIngestedCommand(eventStore, ids),
+      new RecordEmailPartReceivedCommand(eventStore, ids),
       new RecordDocumentFileUploadedCommand(eventStore, ids),
-      sharedFlow,
+      new SubmitDocumentTextCommand(eventStore, ids),
+      new RecordEmailBookingCandidatesCommand(eventStore, ids),
+      new GetEmailIngestProgressQuery(eventStore),
+      new GetEmailBookingCandidatesQuery(eventStore),
+      new RecordExtractedBookingsCommand(eventStore, ids, new TravelerResolver({ RW: ["Ralf"] })),
+      new AutoAssignBookingsToTripsCommand(eventStore, ids),
+      new MarkEmailIngestGatheredCommand(eventStore, ids),
     );
 
-    const response = await slice.process({
-      messageId: "mail-123",
+    const bodyResponse = await slice.process({
+      messageId: "mail-123#body",
+      originalMessageId: "mail-123",
+      part: {
+        originalMessageId: "mail-123",
+        partId: "mail-123#body",
+        partIndex: 0,
+        partCount: 2,
+        partKind: "body",
+      },
       from: "airline@example.test",
       subject: "Ihre Buchung",
       receivedAt: "2026-04-28T09:55:00.000Z",
       text: "Title: Hotel\nType: accommodation\nStart: 2026-10-02\nTravelers: Ralf",
+      attachments: [],
+    });
+
+    expect(bodyResponse).toMatchObject({
+      status: "accepted",
+      emailIngestedId: "part-body",
+      duplicate: false,
+      gathered: false,
+      documentFileUploadedIds: [],
+      documentTextRecordedIds: ["email-text-1"],
+      bookingExtractedIds: [],
+    });
+
+    const attachmentResponse = await slice.process({
+      messageId: "mail-123#attachment_0",
+      originalMessageId: "mail-123",
+      part: {
+        originalMessageId: "mail-123",
+        partId: "mail-123#attachment_0",
+        partIndex: 1,
+        partCount: 2,
+        partKind: "attachment",
+      },
+      from: "airline@example.test",
+      subject: "Ihre Buchung",
+      receivedAt: "2026-04-28T09:55:00.000Z",
+      text: "",
       attachments: [
         {
           fileName: "ticket.pdf",
@@ -110,49 +159,38 @@ describe("IngestEmail", () => {
       ],
     });
 
-    expect(response).toMatchObject({
+    expect(attachmentResponse).toMatchObject({
       status: "accepted",
-      emailIngestedId: "email-1",
+      emailIngestedId: "part-attachment",
       duplicate: false,
+      gathered: true,
       documentFileUploadedIds: ["file-1"],
-      documentTextRecordedIds: ["email-text-1", "file-text-1"],
-      bookingExtractedIds: ["booking-1", "booking-2"],
+      documentTextRecordedIds: ["file-text-1"],
+      bookingExtractedIds: ["booking-1"],
     });
 
     const stored = await eventStore.query();
     expect(stored.events.map((event) => event.eventType)).toEqual([
-      "EmailIngestedV1",
+      "EmailPartReceivedV1",
       "DocumentTextRecordedV1",
-      "BookingExtractedFromDocumentTextV1",
+      "EmailBookingCandidateExtractedV1",
+      "EmailPartProcessedV1",
+      "EmailPartReceivedV1",
       "DocumentFileUploadedV1",
       "DocumentTextRecordedV1",
+      "EmailBookingCandidateExtractedV1",
+      "EmailPartProcessedV1",
       "BookingExtractedFromDocumentTextV1",
+      "EmailIngestGatheredV1",
     ]);
-    expect(stored.events[1].payload).toMatchObject({
-      source: "email",
-      emailIngestedId: "email-1",
+    expect(stored.events[9].payload).toMatchObject({
+      id: "booking-1",
+      documentTextRecordedId: "file-text-1",
     });
-    expect(stored.events[3].payload).toMatchObject({
-      source: "email",
-      emailIngestedId: "email-1",
-      originalFileName: "ticket.pdf",
-    });
-    expect(stored.events[4].payload).toMatchObject({
-      source: "file",
-      documentFileUploadedId: "file-1",
-    });
-
-    const duplicate = await slice.process({
-      messageId: "mail-123",
-      text: "Title: Duplicate\nStart: 2026-10-04",
-      attachments: [],
-    });
-
-    expect(duplicate).toMatchObject({
-      status: "accepted",
-      emailIngestedId: "email-1",
-      duplicate: true,
-      bookingExtractedIds: [],
+    expect(stored.events[10].payload).toMatchObject({
+      originalMessageId: "mail-123",
+      bookingExtractedIds: ["booking-1"],
+      discardedCandidateIds: ["candidate-body"],
     });
   });
 });

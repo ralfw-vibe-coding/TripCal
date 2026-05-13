@@ -2,11 +2,7 @@ import { validateDocumentFiles } from "./_shared/document-file-validation";
 import { parseIngestEmailRequest } from "./_shared/ingest-email-request";
 import { runEmailIngest } from "./_shared/run-email-ingest";
 
-type NetlifyContext = {
-  waitUntil?: (promise: Promise<unknown>) => void;
-};
-
-export default async (request: Request, context: NetlifyContext) => {
+export default async (request: Request) => {
   if (request.method !== "POST") {
     return json(405, { message: "Method not allowed" });
   }
@@ -36,14 +32,9 @@ export default async (request: Request, context: NetlifyContext) => {
     });
   }
 
-  const job = runEmailIngest(ingestRequest);
-  if (context.waitUntil) {
-    context.waitUntil(job);
-  } else {
-    await job;
-  }
+  const response = await runEmailIngest(ingestRequest);
 
-  return json(202, { status: "accepted" });
+  return json(response.status === "accepted" ? 200 : 422, response);
 };
 
 export const config = {

@@ -1,6 +1,10 @@
 export const documentTextRecordedV1 = "DocumentTextRecordedV1";
 export const documentFileUploadedV1 = "DocumentFileUploadedV1";
 export const emailIngestedV1 = "EmailIngestedV1";
+export const emailPartReceivedV1 = "EmailPartReceivedV1";
+export const emailBookingCandidateExtractedV1 = "EmailBookingCandidateExtractedV1";
+export const emailPartProcessedV1 = "EmailPartProcessedV1";
+export const emailIngestGatheredV1 = "EmailIngestGatheredV1";
 export const bookingExtractedFromDocumentTextV1 = "BookingExtractedFromDocumentTextV1";
 export const bookingDeletedV1 = "BookingDeletedV1";
 export const tripCreatedV1 = "TripCreatedV1";

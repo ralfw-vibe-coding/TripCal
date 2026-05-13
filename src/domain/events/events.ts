@@ -1,14 +1,18 @@
 import type { Event } from "@ricofritzsche/eventstore";
-import type { BookingCorrectionPatch, BookingDateTime, BookingPlace, BookingStatus, BookingType } from "../model";
+import type { BookingCorrectionPatch, BookingDateTime, BookingPlace, BookingStatus, BookingType, ExtractedBooking } from "../model";
 import {
   bookingDeletedV1,
   bookingAssignedToTripV1,
   bookingCorrectedV1,
+  emailBookingCandidateExtractedV1,
   bookingExtractedFromDocumentTextV1,
   bookingStatusChangedV1,
   documentFileUploadedV1,
   documentTextRecordedV1,
+  emailIngestGatheredV1,
   emailIngestedV1,
+  emailPartProcessedV1,
+  emailPartReceivedV1,
   tripCreatedV1,
 } from "./eventTypes";
 
@@ -77,6 +81,72 @@ export type EmailIngestedV1Payload = {
 export type EmailIngestedV1 = Event & {
   eventType: typeof emailIngestedV1;
   payload: EmailIngestedV1Payload;
+};
+
+export type EmailPartKind = "body" | "attachment";
+
+export type EmailPartReceivedV1Payload = {
+  id: string;
+  originalMessageId: string;
+  messageId: string;
+  partId: string;
+  partIndex: number;
+  partCount: number;
+  partKind: EmailPartKind;
+  from?: string;
+  subject?: string;
+  receivedAt?: string;
+  fileName?: string;
+  ingestedAt: string;
+};
+
+export type EmailPartReceivedV1 = Event & {
+  eventType: typeof emailPartReceivedV1;
+  payload: EmailPartReceivedV1Payload;
+};
+
+export type EmailBookingCandidateExtractedV1Payload = {
+  id: string;
+  originalMessageId: string;
+  partId: string;
+  partKind: EmailPartKind;
+  documentTextRecordedId: string;
+  documentFileUploadedId?: string;
+  fileName?: string;
+  booking: ExtractedBooking;
+  extractedAt: string;
+};
+
+export type EmailBookingCandidateExtractedV1 = Event & {
+  eventType: typeof emailBookingCandidateExtractedV1;
+  payload: EmailBookingCandidateExtractedV1Payload;
+};
+
+export type EmailPartProcessedV1Payload = {
+  id: string;
+  originalMessageId: string;
+  partId: string;
+  documentTextRecordedId?: string;
+  candidateExtractedIds: string[];
+  processedAt: string;
+};
+
+export type EmailPartProcessedV1 = Event & {
+  eventType: typeof emailPartProcessedV1;
+  payload: EmailPartProcessedV1Payload;
+};
+
+export type EmailIngestGatheredV1Payload = {
+  id: string;
+  originalMessageId: string;
+  bookingExtractedIds: string[];
+  discardedCandidateIds: string[];
+  gatheredAt: string;
+};
+
+export type EmailIngestGatheredV1 = Event & {
+  eventType: typeof emailIngestGatheredV1;
+  payload: EmailIngestGatheredV1Payload;
 };
 
 export type BookingExtractedFromDocumentTextV1Payload = {
@@ -170,6 +240,10 @@ export type TripCalEvent =
   | DocumentTextRecordedV1
   | DocumentFileUploadedV1
   | EmailIngestedV1
+  | EmailPartReceivedV1
+  | EmailBookingCandidateExtractedV1
+  | EmailPartProcessedV1
+  | EmailIngestGatheredV1
   | BookingExtractedFromDocumentTextV1
   | BookingDeletedV1
   | TripCreatedV1
@@ -187,6 +261,22 @@ export function isDocumentFileUploadedV1(event: Event): event is DocumentFileUpl
 
 export function isEmailIngestedV1(event: Event): event is EmailIngestedV1 {
   return event.eventType === emailIngestedV1;
+}
+
+export function isEmailPartReceivedV1(event: Event): event is EmailPartReceivedV1 {
+  return event.eventType === emailPartReceivedV1;
+}
+
+export function isEmailBookingCandidateExtractedV1(event: Event): event is EmailBookingCandidateExtractedV1 {
+  return event.eventType === emailBookingCandidateExtractedV1;
+}
+
+export function isEmailPartProcessedV1(event: Event): event is EmailPartProcessedV1 {
+  return event.eventType === emailPartProcessedV1;
+}
+
+export function isEmailIngestGatheredV1(event: Event): event is EmailIngestGatheredV1 {
+  return event.eventType === emailIngestGatheredV1;
 }
 
 export function isBookingExtractedFromDocumentTextV1(

@@ -1,4 +1,5 @@
 import type { IngestEmailRequest } from "../../../src/behavior/slices/ingest-email/IngestEmail";
+import type { EmailPartKind } from "../../../src/domain/events/events";
 
 type RawBody = Record<string, unknown>;
 
@@ -20,12 +21,28 @@ export function toIngestEmailRequest(body: RawBody): IngestEmailRequest {
 
   return {
     messageId: String(email.messageId ?? email.messageID ?? email.id ?? ""),
+    originalMessageId: optionalString(email.originalMessageId ?? root.originalMessageId),
+    part: toPartInfo(root.part ?? email.part ?? root.partInfo ?? email.partInfo),
     from: optionalString(email.from),
     subject: optionalString(email.subject),
     receivedAt: optionalString(email.receivedAt ?? email.date),
     text: optionalString(email.text ?? email.bodyText ?? root.text),
     attachments: Array.isArray(root.attachments) ? root.attachments.map(toAttachmentInput) : [],
   };
+}
+
+function toPartInfo(value: unknown) {
+  const record = typeof value === "object" && value !== null ? (value as RawBody) : {};
+  const partKind: EmailPartKind | undefined =
+    record.partKind === "attachment" ? "attachment" : record.partKind === "body" ? "body" : undefined;
+  const part = {
+    originalMessageId: optionalString(record.originalMessageId),
+    partId: optionalString(record.partId),
+    partIndex: optionalNumber(record.partIndex),
+    partCount: optionalNumber(record.partCount),
+    partKind,
+  };
+  return Object.values(part).some((value) => value !== undefined) ? part : undefined;
 }
 
 export function toAttachmentInput(value: unknown) {
@@ -99,4 +116,9 @@ function optionalString(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
   const text = String(value).trim();
   return text.length > 0 ? text : undefined;
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  const number = Number(value);
+  return Number.isInteger(number) ? number : undefined;
 }

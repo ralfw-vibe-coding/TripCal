@@ -1,7 +1,8 @@
 import type { IngestEmailRequest } from "../../../src/behavior/slices/ingest-email/IngestEmail";
+import type { IngestEmailResponse } from "../../../src/behavior/slices/ingest-email/IngestEmail";
 import { getProcessorRuntime } from "../../../src/runtime/singleton";
 
-export async function runEmailIngest(ingestRequest: IngestEmailRequest): Promise<void> {
+export async function runEmailIngest(ingestRequest: IngestEmailRequest): Promise<IngestEmailResponse> {
   try {
     const runtime = await getProcessorRuntime();
     const response = await runtime.processor.ingestEmail(ingestRequest);
@@ -12,6 +13,7 @@ export async function runEmailIngest(ingestRequest: IngestEmailRequest): Promise
         message: response.message,
       });
     }
+    return response;
   } catch (error) {
     console.error("TripCal email ingest failed", {
       messageId: ingestRequest.messageId,
@@ -22,6 +24,7 @@ export async function runEmailIngest(ingestRequest: IngestEmailRequest): Promise
     });
 
     await appendFailureToActivityLog(ingestRequest, error);
+    throw error;
   }
 }
 

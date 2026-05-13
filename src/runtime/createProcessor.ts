@@ -23,9 +23,13 @@ import { CorrectBookingCommand } from "../domain/rpus/correct-booking-command/Co
 import { CreateTripCommand } from "../domain/rpus/create-trip-command/CreateTripCommand";
 import { DeleteBookingCommand } from "../domain/rpus/delete-booking-command/DeleteBookingCommand";
 import { GetBookingCalendarQuery } from "../domain/rpus/get-booking-calendar-query/GetBookingCalendarQuery";
+import { GetEmailBookingCandidatesQuery } from "../domain/rpus/get-email-booking-candidates-query/GetEmailBookingCandidatesQuery";
+import { GetEmailIngestProgressQuery } from "../domain/rpus/get-email-ingest-progress-query/GetEmailIngestProgressQuery";
 import { GetTripsQuery } from "../domain/rpus/get-trips-query/GetTripsQuery";
+import { MarkEmailIngestGatheredCommand } from "../domain/rpus/mark-email-ingest-gathered-command/MarkEmailIngestGatheredCommand";
 import { RecordDocumentFileUploadedCommand } from "../domain/rpus/record-document-file-uploaded-command/RecordDocumentFileUploadedCommand";
-import { RecordEmailIngestedCommand } from "../domain/rpus/record-email-ingested-command/RecordEmailIngestedCommand";
+import { RecordEmailBookingCandidatesCommand } from "../domain/rpus/record-email-booking-candidates-command/RecordEmailBookingCandidatesCommand";
+import { RecordEmailPartReceivedCommand } from "../domain/rpus/record-email-part-received-command/RecordEmailPartReceivedCommand";
 import { RecordExtractedBookingsCommand } from "../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
 import { SubmitDocumentTextCommand } from "../domain/rpus/submit-document-text-command/SubmitDocumentTextCommand";
 import type { ActivityLogProvider } from "../providers/activity-log/ActivityLogProvider";
@@ -66,10 +70,14 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   const autoAssignBookingsToTripsCommand = new AutoAssignBookingsToTripsCommand(store, idGenerator);
   const correctBookingCommand = new CorrectBookingCommand(store, idGenerator, clock);
   const changeBookingStatusCommand = new ChangeBookingStatusCommand(store, idGenerator, clock);
-  const recordEmailIngestedCommand = new RecordEmailIngestedCommand(store, idGenerator);
+  const recordEmailPartReceivedCommand = new RecordEmailPartReceivedCommand(store, idGenerator);
+  const recordEmailBookingCandidatesCommand = new RecordEmailBookingCandidatesCommand(store, idGenerator);
+  const markEmailIngestGatheredCommand = new MarkEmailIngestGatheredCommand(store, idGenerator);
   const recordDocumentFileUploadedCommand = new RecordDocumentFileUploadedCommand(store, idGenerator);
   const recordExtractedBookingsCommand = new RecordExtractedBookingsCommand(store, idGenerator, travelerResolver);
   const getBookingCalendarQuery = new GetBookingCalendarQuery(store, travelerResolver);
+  const getEmailIngestProgressQuery = new GetEmailIngestProgressQuery(store);
+  const getEmailBookingCandidatesQuery = new GetEmailBookingCandidatesQuery(store);
   const getTripsQuery = new GetTripsQuery(store);
 
   const recordDocumentTextAndExtractBookings = new RecordDocumentTextAndExtractBookings(
@@ -91,10 +99,17 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
     clock,
     fileStorageProvider,
     textExtractionProvider,
+    extractionProvider,
     activityLogProvider,
-    recordEmailIngestedCommand,
+    recordEmailPartReceivedCommand,
     recordDocumentFileUploadedCommand,
-    recordDocumentTextAndExtractBookings,
+    submitDocumentTextCommand,
+    recordEmailBookingCandidatesCommand,
+    getEmailIngestProgressQuery,
+    getEmailBookingCandidatesQuery,
+    recordExtractedBookingsCommand,
+    autoAssignBookingsToTripsCommand,
+    markEmailIngestGatheredCommand,
   );
   const submitDocumentFiles = new SubmitDocumentFiles(
     clock,
