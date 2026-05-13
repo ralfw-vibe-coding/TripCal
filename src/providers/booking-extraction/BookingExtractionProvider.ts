@@ -2,6 +2,7 @@ import type { ExtractedBooking } from "../../domain/model";
 
 export type ExtractBookingsFromTextRequest = {
   text: string;
+  referenceYear: number;
 };
 
 export type ExtractBookingsFromTextResponse = {
@@ -12,4 +13,3 @@ export type ExtractBookingsFromTextResponse = {
 export interface BookingExtractionProvider {
   extractBookingsFromText(request: ExtractBookingsFromTextRequest): Promise<ExtractBookingsFromTextResponse>;
 }
-

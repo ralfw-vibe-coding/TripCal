@@ -30,6 +30,11 @@ type BookingExtractionJson = {
   warnings?: unknown;
 };
 
+type DateTimeNormalization = {
+  dateTime: BookingDateTime;
+  warnings: string[];
+};
+
 const bookingTypes: BookingType[] = [
   "flight",
   "accommodation",
@@ -67,12 +72,26 @@ export class OpenAIBookingExtractionProvider implements BookingExtractionProvide
           "operator ist das ausführende Unternehmen oder der Anbieter, z.B. Lufthansa, Deutsche Bahn, Air Cambodia, SNAV, Hertz.",
           "Für event, restaurant und activity lasse serviceIdentifier und operator weg, außer sie sind ausdrücklich sinnvoll im Text genannt.",
           "Alle weiteren Angaben wie Buchungsnummern, Check-in, Sitzplätze, Gepäck, Adressen oder Stornoregeln gehören als gut lesbarer Markdown-Text in details.",
-          "Verwende ISO-Strings für Datums-/Zeitwerte, möglichst inklusive Zeitzone, wenn sie im Text erkennbar ist.",
+          "Liefere start und end als Datumsteile, nicht als fertige ISO-Strings.",
+          "Extrahiere bei Datums-/Zeitwerten nur Bestandteile, die ausdrücklich im Text stehen.",
+          "Wenn im Text kein Jahr steht, setze date.year auf null. Erfinde niemals ein Jahr.",
+          "Wenn im Text keine Uhrzeit steht, setze time auf null.",
+          "Wenn eine Zeitzone oder ein UTC-Offset ausdrücklich erkennbar ist, setze timezone, sonst lasse timezone weg.",
         ].join(" "),
         input: [
           {
             role: "user",
-            content: [{ type: "input_text", text: request.text }],
+            content: [
+              {
+                type: "input_text",
+                text: [
+                  `Referenzjahr fuer spaetere Normalisierung: ${request.referenceYear}.`,
+                  "Nutze dieses Referenzjahr nicht als extrahiertes Jahr. Wenn das Jahr im Dokument fehlt, muss date.year null bleiben.",
+                  "",
+                  request.text,
+                ].join("\n"),
+              },
+            ],
           },
         ],
         text: {
@@ -93,10 +112,11 @@ export class OpenAIBookingExtractionProvider implements BookingExtractionProvide
 
     const body = (await response.json()) as OpenAIResponse;
     const parsed = JSON.parse(extractOutputText(body)) as BookingExtractionJson;
+    const parsedBookings = parseBookings(parsed, request.referenceYear);
 
     return {
-      bookings: parseBookings(parsed),
-      warnings: parseWarnings(parsed.warnings),
+      bookings: parsedBookings.bookings,
+      warnings: mergeWarnings(parseWarnings(parsed.warnings), parsedBookings.warnings),
     };
   }
 }
@@ -139,11 +159,34 @@ const bookingExtractionSchema = {
       type: "object",
       additionalProperties: false,
       properties: {
-        value: { type: "string" },
-        precision: { type: "string", enum: ["date", "datetime"] },
+        sourceText: { type: "string" },
+        date: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            year: { anyOf: [{ type: "integer" }, { type: "null" }] },
+            month: { type: "integer", minimum: 1, maximum: 12 },
+            day: { type: "integer", minimum: 1, maximum: 31 },
+          },
+          required: ["year", "month", "day"],
+        },
+        time: {
+          anyOf: [
+            {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                hour: { type: "integer", minimum: 0, maximum: 23 },
+                minute: { type: "integer", minimum: 0, maximum: 59 },
+              },
+              required: ["hour", "minute"],
+            },
+            { type: "null" },
+          ],
+        },
         timezone: { type: "string" },
       },
-      required: ["value", "precision"],
+      required: ["sourceText", "date", "time"],
     },
     place: {
       type: "object",
@@ -174,12 +217,17 @@ function extractOutputText(response: OpenAIResponse): string {
   throw new Error("OpenAI response did not contain output text.");
 }
 
-function parseBookings(parsed: BookingExtractionJson): ExtractedBooking[] {
-  return (parsed.bookings ?? []).map((booking, index): ExtractedBooking => {
-    const start = parseDateTime(booking.start) ?? {
+function parseBookings(parsed: BookingExtractionJson, referenceYear: number): { bookings: ExtractedBooking[]; warnings: string[] } {
+  const warnings: string[] = [];
+  const bookings = (parsed.bookings ?? []).map((booking, index): ExtractedBooking => {
+    const parsedStart = parseDateTime(booking.start, referenceYear, `Buchung ${index + 1}: Start`);
+    if (parsedStart) warnings.push(...parsedStart.warnings);
+    const start = parsedStart?.dateTime ?? {
       value: new Date().toISOString().slice(0, 10),
       precision: "date",
     };
+    const parsedEnd = parseDateTime(booking.end, referenceYear, `Buchung ${index + 1}: Ende`);
+    if (parsedEnd) warnings.push(...parsedEnd.warnings);
 
     return {
       title: parseString(booking.title) ?? `Buchung ${index + 1}`,
@@ -187,13 +235,14 @@ function parseBookings(parsed: BookingExtractionJson): ExtractedBooking[] {
       serviceIdentifier: parseString(booking.serviceIdentifier),
       operator: parseString(booking.operator),
       start,
-      end: parseDateTime(booking.end),
+      end: parsedEnd?.dateTime,
       from: parsePlace(booking.from),
       to: parsePlace(booking.to),
       travelers: parseStringArray(booking.travelers),
       details: parseString(booking.details) ?? "",
     };
   });
+  return { bookings, warnings };
 }
 
 function parseString(value: unknown): string | undefined {
@@ -204,15 +253,67 @@ function parseBookingType(value: unknown): BookingType {
   return typeof value === "string" && bookingTypes.includes(value as BookingType) ? (value as BookingType) : "other";
 }
 
-function parseDateTime(value: unknown): BookingDateTime | undefined {
+export function normalizeExtractedDateTime(
+  value: unknown,
+  referenceYear: number,
+  label = "Datum",
+): DateTimeNormalization | undefined {
   if (!isRecord(value)) return undefined;
+
   const textValue = parseString(value.value);
-  if (!textValue) return undefined;
+  if (textValue) {
+    return {
+      dateTime: {
+        value: textValue,
+        precision: value.precision === "datetime" ? "datetime" : "date",
+        timezone: parseString(value.timezone),
+      },
+      warnings: [],
+    };
+  }
+
+  const date = isRecord(value.date) ? value.date : undefined;
+  const day = parseInteger(date?.day);
+  const month = parseInteger(date?.month);
+  const explicitYear = parseNullableInteger(date?.year);
+  if (!day || !month) return undefined;
+
+  const year = explicitYear ?? referenceYear;
+  const time = isRecord(value.time) ? value.time : undefined;
+  const hour = parseInteger(time?.hour);
+  const minute = parseInteger(time?.minute);
+  const hasTime = hour !== undefined && minute !== undefined;
+  const dateValue = toDateValue(year, month, day);
+  const timezone = parseString(value.timezone);
+  const sourceText = parseString(value.sourceText);
+  const warnings =
+    explicitYear === undefined
+      ? [`${label}: Jahr aus Referenzjahr ${referenceYear} ergänzt${sourceText ? ` (Quelle: ${sourceText})` : ""}.`]
+      : [];
+
+  if (!hasTime) {
+    return {
+      dateTime: {
+        value: dateValue,
+        precision: "date",
+        timezone,
+      },
+      warnings,
+    };
+  }
+
   return {
-    value: textValue,
-    precision: value.precision === "datetime" ? "datetime" : "date",
-    timezone: parseString(value.timezone),
+    dateTime: {
+      value: `${dateValue}T${pad2(hour)}:${pad2(minute)}:00${isOffsetTimezone(timezone) ? timezone : ""}`,
+      precision: "datetime",
+      timezone,
+    },
+    warnings,
   };
+}
+
+function parseDateTime(value: unknown, referenceYear: number, label: string): DateTimeNormalization | undefined {
+  return normalizeExtractedDateTime(value, referenceYear, label);
 }
 
 function parsePlace(value: unknown): BookingPlace | undefined {
@@ -232,8 +333,33 @@ function parseStringArray(value: unknown): string[] {
     : [];
 }
 
+function parseInteger(value: unknown): number | undefined {
+  return Number.isInteger(value) ? (value as number) : undefined;
+}
+
+function parseNullableInteger(value: unknown): number | undefined {
+  return value === null || value === undefined ? undefined : parseInteger(value);
+}
+
+function toDateValue(year: number, month: number, day: number): string {
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function isOffsetTimezone(value: string | undefined): boolean {
+  return Boolean(value?.match(/^[+-]\d{2}:\d{2}$/));
+}
+
 function parseWarnings(value: unknown): string[] | undefined {
   const warnings = parseStringArray(value);
+  return warnings.length > 0 ? warnings : undefined;
+}
+
+function mergeWarnings(...warningGroups: Array<string[] | undefined>): string[] | undefined {
+  const warnings = warningGroups.flatMap((group) => group ?? []);
   return warnings.length > 0 ? warnings : undefined;
 }
 

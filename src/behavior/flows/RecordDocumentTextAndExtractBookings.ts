@@ -101,12 +101,14 @@ export class RecordDocumentTextAndExtractBookings {
       ...documentDetails,
       documentTextRecordedId: submitResponse.documentTextRecordedId,
     });
+    const referenceYear = this.clock.now().getFullYear();
     await this.log("info", "Buchungsextraktion gestartet", {
       ...documentDetails,
       documentTextRecordedId: submitResponse.documentTextRecordedId,
+      referenceYear,
     });
 
-    const extraction = await this.extractBookings(text);
+    const extraction = await this.extractBookings(text, referenceYear);
     if (!extraction) {
       await this.log("warning", "Buchungsextraktion fehlgeschlagen", {
         ...documentDetails,
@@ -122,6 +124,7 @@ export class RecordDocumentTextAndExtractBookings {
     await this.log("info", "Buchungsextraktion abgeschlossen", {
       ...documentDetails,
       documentTextRecordedId: submitResponse.documentTextRecordedId,
+      referenceYear,
       bookingCount: extraction.bookings.length,
       warnings: extraction.warnings,
     });
@@ -170,9 +173,9 @@ export class RecordDocumentTextAndExtractBookings {
     };
   }
 
-  private async extractBookings(text: string) {
+  private async extractBookings(text: string, referenceYear: number) {
     try {
-      return await this.bookingExtractionProvider.extractBookingsFromText({ text });
+      return await this.bookingExtractionProvider.extractBookingsFromText({ text, referenceYear });
     } catch {
       return undefined;
     }
