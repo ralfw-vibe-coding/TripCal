@@ -8,6 +8,7 @@ export const emailIngestGatheredV1 = "EmailIngestGatheredV1";
 export const bookingExtractedFromDocumentTextV1 = "BookingExtractedFromDocumentTextV1";
 export const bookingDeletedV1 = "BookingDeletedV1";
 export const tripCreatedV1 = "TripCreatedV1";
+export const tripCorrectedV1 = "TripCorrectedV1";
 export const bookingAssignedToTripV1 = "BookingAssignedToTripV1";
 export const bookingCorrectedV1 = "BookingCorrectedV1";
 export const bookingStatusChangedV1 = "BookingStatusChangedV1";

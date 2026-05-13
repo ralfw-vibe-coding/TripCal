@@ -5,9 +5,10 @@ import type {
   BookingAssignedToTripV1,
   BookingAssignedToTripV1Payload,
   BookingExtractedFromDocumentTextV1Payload,
+  TripCorrectedV1Payload,
   TripCreatedV1Payload,
 } from "../../events/events";
-import { bookingAssignedToTripV1, bookingExtractedFromDocumentTextV1, tripCreatedV1 } from "../../events/eventTypes";
+import { bookingAssignedToTripV1, bookingExtractedFromDocumentTextV1, tripCorrectedV1, tripCreatedV1 } from "../../events/eventTypes";
 
 export type AutoAssignBookingsToTripsCommandRequest = {
   bookingExtractedIds: string[];
@@ -36,7 +37,7 @@ export class AutoAssignBookingsToTripsCommand {
     }
 
     const result = await this.eventStore.query(
-      createFilter([bookingExtractedFromDocumentTextV1, tripCreatedV1, bookingAssignedToTripV1]),
+      createFilter([bookingExtractedFromDocumentTextV1, tripCreatedV1, tripCorrectedV1, bookingAssignedToTripV1]),
     );
     const bookings = mapBookings(result.events);
     const trips = mapTrips(result.events);
@@ -106,9 +107,24 @@ function mapBookings(events: EventRecord[]): Map<string, BookingExtractedFromDoc
 }
 
 function mapTrips(events: EventRecord[]): TripCreatedV1Payload[] {
-  return events
-    .filter((event) => event.eventType === tripCreatedV1)
-    .map((event) => event.payload as TripCreatedV1Payload);
+  const trips = new Map<string, TripCreatedV1Payload>();
+  for (const event of events) {
+    if (event.eventType === tripCreatedV1) {
+      const payload = event.payload as TripCreatedV1Payload;
+      trips.set(payload.id, { ...payload });
+    }
+    if (event.eventType === tripCorrectedV1) {
+      const payload = event.payload as TripCorrectedV1Payload;
+      const trip = trips.get(payload.tripCreatedId);
+      if (!trip) continue;
+      if (payload.patch.shortCode !== undefined) trip.shortCode = payload.patch.shortCode;
+      if (payload.patch.title !== undefined) trip.title = payload.patch.title ?? undefined;
+      if (payload.patch.owner !== undefined) trip.owner = payload.patch.owner;
+      if (payload.patch.startDate !== undefined) trip.startDate = payload.patch.startDate;
+      if (payload.patch.endDate !== undefined) trip.endDate = payload.patch.endDate;
+    }
+  }
+  return [...trips.values()];
 }
 
 function mapAssignedBookingIds(events: EventRecord[]): Set<string> {

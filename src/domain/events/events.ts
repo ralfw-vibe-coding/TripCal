@@ -1,5 +1,13 @@
 import type { Event } from "@ricofritzsche/eventstore";
-import type { BookingCorrectionPatch, BookingDateTime, BookingPlace, BookingStatus, BookingType, ExtractedBooking } from "../model";
+import type {
+  BookingCorrectionPatch,
+  BookingDateTime,
+  BookingPlace,
+  BookingStatus,
+  BookingType,
+  ExtractedBooking,
+  TripCorrectionPatch,
+} from "../model";
 import {
   bookingDeletedV1,
   bookingAssignedToTripV1,
@@ -13,6 +21,7 @@ import {
   emailIngestedV1,
   emailPartProcessedV1,
   emailPartReceivedV1,
+  tripCorrectedV1,
   tripCreatedV1,
 } from "./eventTypes";
 
@@ -200,6 +209,18 @@ export type TripCreatedV1 = Event & {
   payload: TripCreatedV1Payload;
 };
 
+export type TripCorrectedV1Payload = {
+  id: string;
+  tripCreatedId: string;
+  correctedAt: string;
+  patch: TripCorrectionPatch;
+};
+
+export type TripCorrectedV1 = Event & {
+  eventType: typeof tripCorrectedV1;
+  payload: TripCorrectedV1Payload;
+};
+
 export type BookingAssignedToTripV1Payload = {
   id: string;
   bookingExtractedId: string;
@@ -247,6 +268,7 @@ export type TripCalEvent =
   | BookingExtractedFromDocumentTextV1
   | BookingDeletedV1
   | TripCreatedV1
+  | TripCorrectedV1
   | BookingAssignedToTripV1
   | BookingCorrectedV1
   | BookingStatusChangedV1;
@@ -291,6 +313,10 @@ export function isBookingDeletedV1(event: Event): event is BookingDeletedV1 {
 
 export function isTripCreatedV1(event: Event): event is TripCreatedV1 {
   return event.eventType === tripCreatedV1;
+}
+
+export function isTripCorrectedV1(event: Event): event is TripCorrectedV1 {
+  return event.eventType === tripCorrectedV1;
 }
 
 export function isBookingAssignedToTripV1(event: Event): event is BookingAssignedToTripV1 {

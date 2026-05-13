@@ -41,6 +41,7 @@ import {
   assignBookingToTrip,
   changeBookingStatus,
   correctBooking,
+  correctTrip,
   createTrip,
   deleteBooking,
   submitDocumentFiles,
@@ -110,7 +111,8 @@ export function App() {
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(true);
   const [showSubmit, setShowSubmit] = useState(false);
   const [showTripDialog, setShowTripDialog] = useState(false);
-  const [isCreatingTrip, setIsCreatingTrip] = useState(false);
+  const [isSavingTrip, setIsSavingTrip] = useState(false);
+  const [editingTrip, setEditingTrip] = useState<Trip | undefined>();
   const [editingBooking, setEditingBooking] = useState<CalendarBooking | undefined>();
   const [bookingEditForm, setBookingEditForm] = useState<BookingEditForm | undefined>();
   const [viewingDocument, setViewingDocument] = useState<ViewedDocument | undefined>();
@@ -210,37 +212,55 @@ export function App() {
   }
 
   function openTripDialog() {
+    setEditingTrip(undefined);
     setTripForm({ shortCode: "", title: "", owner: "", startDate: "", endDate: "" });
     setFormError(undefined);
     setShowTripDialog(true);
   }
 
-  async function handleCreateTrip() {
+  function openTripEditDialog(trip: Trip) {
+    setEditingTrip(trip);
+    setTripForm({
+      shortCode: trip.shortCode,
+      title: trip.title ?? "",
+      owner: trip.owner,
+      startDate: trip.startDate,
+      endDate: trip.endDate,
+    });
+    setFormError(undefined);
+    setShowTripDialog(true);
+  }
+
+  async function handleSaveTrip() {
     const validationMessage = validateTripForm(tripForm);
     if (validationMessage) {
       setFormError(validationMessage);
       return;
     }
 
-    setIsCreatingTrip(true);
+    setIsSavingTrip(true);
     setMessage(undefined);
     setFormError(undefined);
     try {
-      const response = await createTrip({
+      const payload = {
         shortCode: tripForm.shortCode,
         title: tripForm.title || undefined,
         owner: tripForm.owner,
         startDate: tripForm.startDate,
         endDate: tripForm.endDate,
-      });
+      };
+      const response = editingTrip
+        ? await correctTrip({ tripCreatedId: editingTrip.tripCreatedId, ...payload })
+        : await createTrip(payload);
       if (response.status === "failed") {
-        setFormError(tripCreateMessage(response.reason));
+        setFormError(tripSaveMessage(response.reason));
         return;
       }
       setShowTripDialog(false);
+      setEditingTrip(undefined);
       await loadCalendar();
     } finally {
-      setIsCreatingTrip(false);
+      setIsSavingTrip(false);
     }
   }
 
@@ -406,8 +426,13 @@ export function App() {
                       <strong>{trip.shortCode}</strong>
                       <span className="tripListNumber">#{trip.tripNumber}</span>
                     </span>
-                    <span className="travelerBadge tripOwnerBadge" title={trip.owner} style={travelerBadgeStyle(trip.owner)}>
-                      {trip.owner}
+                    <span className="tripListActions">
+                      <span className="travelerBadge tripOwnerBadge" title={trip.owner} style={travelerBadgeStyle(trip.owner)}>
+                        {trip.owner}
+                      </span>
+                      <button className="tripEditButton" type="button" onClick={() => openTripEditDialog(trip)} title="Trip bearbeiten">
+                        <Pencil size={14} />
+                      </button>
                     </span>
                   </div>
                   <div className="tripListDates">
@@ -753,13 +778,21 @@ export function App() {
 
       {showTripDialog ? (
         <div className="dialogBackdrop blur" role="presentation">
-          <section className="dialog tripDialog" aria-label="Trip anlegen">
+          <section className="dialog tripDialog" aria-label={editingTrip ? "Trip bearbeiten" : "Trip anlegen"}>
             <header className="dialogHeader">
               <div>
                 <div className="eyebrow">Trip</div>
-                <h2>Trip anlegen</h2>
+                <h2>{editingTrip ? "Trip bearbeiten" : "Trip anlegen"}</h2>
               </div>
-              <button className="iconButton" type="button" onClick={() => setShowTripDialog(false)} title="Schließen">
+              <button
+                className="iconButton"
+                type="button"
+                onClick={() => {
+                  setShowTripDialog(false);
+                  setEditingTrip(undefined);
+                }}
+                title="Schließen"
+              >
                 <X size={18} />
               </button>
             </header>
@@ -821,12 +854,16 @@ export function App() {
             </div>
             <footer className="dialogFooter">
               <div>
-                <div className="hint">Tripnummer und Farbe werden automatisch vergeben.</div>
+                <div className="hint">
+                  {editingTrip
+                    ? "Bestehende Buchungszuordnungen bleiben unverändert."
+                    : "Tripnummer und Farbe werden automatisch vergeben."}
+                </div>
                 {formError ? <div className="formError">{formError}</div> : null}
               </div>
-              <button className="primaryButton" type="button" onClick={handleCreateTrip} disabled={isCreatingTrip}>
-                {isCreatingTrip ? <Loader2 className="spin" size={18} /> : <Plus size={18} />}
-                Anlegen
+              <button className="primaryButton" type="button" onClick={handleSaveTrip} disabled={isSavingTrip}>
+                {isSavingTrip ? <Loader2 className="spin" size={18} /> : editingTrip ? <Pencil size={18} /> : <Plus size={18} />}
+                {editingTrip ? "Speichern" : "Anlegen"}
               </button>
             </footer>
           </section>
@@ -1895,14 +1932,15 @@ function formatShortDate(value: string): string {
   }).format(date);
 }
 
-function tripCreateMessage(reason: string): string {
+function tripSaveMessage(reason: string): string {
   const messages: Record<string, string> = {
     missing_short_code: "Bitte gib ein Trip-Kürzel ein.",
     missing_owner: "Bitte gib einen Owner ein.",
     invalid_dates: "Bitte gib einen gültigen Zeitraum ein.",
     duplicate_short_code: "Dieses Trip-Kürzel gibt es bereits.",
+    trip_not_found: "Dieser Trip wurde nicht gefunden.",
   };
-  return messages[reason] ?? "Trip konnte nicht angelegt werden.";
+  return messages[reason] ?? "Trip konnte nicht gespeichert werden.";
 }
 
 function withBatchSeparators(entries: ActivityLogEntry[]): ActivityLogTableRow[] {

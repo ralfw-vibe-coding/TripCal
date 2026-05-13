@@ -10,6 +10,7 @@ import type { AssignBookingToTripResponse } from "../../behavior/slices/assign-b
 import type { ChangeBookingStatusResponse } from "../../behavior/slices/change-booking-status/ChangeBookingStatus";
 import type { CorrectBookingResponse } from "../../behavior/slices/correct-booking/CorrectBooking";
 import type { CreateTripResponse } from "../../behavior/slices/create-trip/CreateTrip";
+import type { CorrectTripResponse } from "../../behavior/slices/correct-trip/CorrectTrip";
 import type { ViewTripsResponse } from "../../behavior/slices/view-trips/ViewTrips";
 import type { BookingCorrectionPatch, BookingStatus } from "../../domain/model";
 import type { ActivityLogEntry } from "../../providers/activity-log/ActivityLogProvider";
@@ -184,6 +185,26 @@ export async function createTrip(request: {
   const body = (await response.json()) as CreateTripResponse;
   if (!response.ok && body.status !== "failed") {
     throw new Error("Trip konnte nicht angelegt werden.");
+  }
+  return body;
+}
+
+export async function correctTrip(request: {
+  tripCreatedId: string;
+  shortCode: string;
+  title?: string;
+  owner: string;
+  startDate: string;
+  endDate: string;
+}): Promise<CorrectTripResponse> {
+  const response = await fetch("/api/correct-trip", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  const body = (await response.json()) as CorrectTripResponse;
+  if (!response.ok && body.status !== "failed") {
+    throw new Error("Trip konnte nicht geändert werden.");
   }
   return body;
 }

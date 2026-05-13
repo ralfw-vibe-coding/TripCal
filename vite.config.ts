@@ -88,6 +88,24 @@ function tripCalApiPlugin() {
         sendJson(response, result.status === "succeeded" ? 200 : 400, result);
       });
 
+      server.middlewares.use("/api/correct-trip", async (request, response) => {
+        if (request.method !== "POST") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+        const body = await readJsonBody(request);
+        const runtime = await getProcessorRuntime();
+        const result = await runtime.processor.correctTrip({
+          tripCreatedId: String(body.tripCreatedId ?? ""),
+          shortCode: String(body.shortCode ?? ""),
+          title: optionalString(body.title),
+          owner: String(body.owner ?? ""),
+          startDate: String(body.startDate ?? ""),
+          endDate: String(body.endDate ?? ""),
+        });
+        sendJson(response, result.status === "succeeded" ? 200 : 400, result);
+      });
+
       server.middlewares.use("/api/assign-booking-to-trip", async (request, response) => {
         if (request.method !== "POST") {
           sendJson(response, 405, { message: "Method not allowed" });

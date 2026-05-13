@@ -8,6 +8,7 @@ import type {
   BookingStatusChangedV1Payload,
   DocumentFileUploadedV1Payload,
   DocumentTextRecordedV1Payload,
+  TripCorrectedV1Payload,
   TripCreatedV1Payload,
 } from "../../events/events";
 import {
@@ -18,9 +19,10 @@ import {
   bookingStatusChangedV1,
   documentFileUploadedV1,
   documentTextRecordedV1,
+  tripCorrectedV1,
   tripCreatedV1,
 } from "../../events/eventTypes";
-import type { CalendarBooking } from "../../model";
+import type { CalendarBooking, CalendarTripReference } from "../../model";
 import type { BookingCorrectionPatch, BookingStatus } from "../../model";
 import type { TravelerResolver } from "../../../providers/travelers/TravelerResolver";
 
@@ -44,6 +46,7 @@ export class GetBookingCalendarQuery {
         documentTextRecordedV1,
         documentFileUploadedV1,
         tripCreatedV1,
+        tripCorrectedV1,
         bookingAssignedToTripV1,
         bookingCorrectedV1,
         bookingStatusChangedV1,
@@ -83,7 +86,7 @@ function toCalendarBooking(
   event: EventRecord,
   documentTexts: Map<string, DocumentTextRecordedV1Payload>,
   documentFiles: Map<string, DocumentFileUploadedV1Payload>,
-  trips: Map<string, TripCreatedV1Payload>,
+  trips: Map<string, CalendarTripReference>,
   assignedTrips: Map<string, string>,
   corrections: Map<string, BookingCorrectionPatch[]>,
   statuses: Map<string, BookingStatus>,
@@ -121,7 +124,7 @@ function toCalendarBooking(
     processedAt: payload.extractedAt,
     trip: trip
       ? {
-          tripCreatedId: trip.id,
+          tripCreatedId: trip.tripCreatedId,
           shortCode: trip.shortCode,
           color: trip.color,
           owner: trip.owner,
@@ -183,12 +186,24 @@ function mapDocumentFiles(events: EventRecord[]): Map<string, DocumentFileUpload
   return documents;
 }
 
-function mapTrips(events: EventRecord[]): Map<string, TripCreatedV1Payload> {
-  const trips = new Map<string, TripCreatedV1Payload>();
+function mapTrips(events: EventRecord[]): Map<string, CalendarTripReference> {
+  const trips = new Map<string, CalendarTripReference>();
   for (const event of events) {
     if (event.eventType === tripCreatedV1) {
       const payload = event.payload as TripCreatedV1Payload;
-      trips.set(payload.id, payload);
+      trips.set(payload.id, {
+        tripCreatedId: payload.id,
+        shortCode: payload.shortCode,
+        color: payload.color,
+        owner: payload.owner,
+      });
+    }
+    if (event.eventType === tripCorrectedV1) {
+      const payload = event.payload as TripCorrectedV1Payload;
+      const trip = trips.get(payload.tripCreatedId);
+      if (!trip) continue;
+      if (payload.patch.shortCode !== undefined) trip.shortCode = payload.patch.shortCode;
+      if (payload.patch.owner !== undefined) trip.owner = payload.patch.owner;
     }
   }
   return trips;

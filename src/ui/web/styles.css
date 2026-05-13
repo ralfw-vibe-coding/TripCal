@@ -223,6 +223,29 @@ h1 {
   font-size: 0.86rem;
 }
 
+.tripListActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tripEditButton {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #40504d;
+  cursor: pointer;
+}
+
+.tripEditButton:hover {
+  border-color: #d7dedb;
+  background: #f7f7f4;
+}
+
 .tripListTitle {
   min-width: 0;
   display: flex;

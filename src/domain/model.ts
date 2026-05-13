@@ -84,6 +84,14 @@ export type Trip = {
   color: string;
 };
 
+export type TripCorrectionPatch = {
+  shortCode?: string;
+  title?: string | null;
+  owner?: string;
+  startDate?: string;
+  endDate?: string;
+};
+
 export type CalendarTripReference = {
   tripCreatedId: string;
   shortCode: string;
