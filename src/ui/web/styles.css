@@ -619,14 +619,14 @@ h1 {
 
 .dayGroup {
   display: grid;
-  grid-template-columns: 150px minmax(22px, calc(var(--trip-lane-count, 1) * 10px + 12px)) 1fr;
+  grid-template-columns: 150px 1fr;
   gap: 18px;
   padding: 0;
 }
 
 .gapBarRow {
   display: grid;
-  grid-template-columns: 150px minmax(22px, calc(var(--trip-lane-count, 1) * 10px + 12px)) 1fr;
+  grid-template-columns: 150px 1fr;
   gap: 18px;
   align-items: center;
   min-height: 24px;
@@ -649,27 +649,6 @@ h1 {
   padding: 22px 0;
   color: #40504d;
   font-weight: 800;
-}
-
-.tripLaneColumn {
-  align-self: stretch;
-  display: grid;
-  grid-template-columns: repeat(var(--trip-lane-count, 1), 6px);
-  gap: 4px;
-  justify-content: start;
-  min-height: 100%;
-  overflow: hidden;
-}
-
-.tripLaneSlot {
-  min-height: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-.tripLaneLine {
-  width: 4px;
-  min-height: 100%;
 }
 
 .bookingList {
@@ -1409,17 +1388,12 @@ textarea {
     padding: 0 0 22px;
   }
 
-  .dayGroup > .tripLaneColumn {
-    display: none;
-  }
-
   .gapBarRow {
     grid-template-columns: 1fr;
     gap: 0;
   }
 
-  .gapBarRow > :first-child,
-  .gapBarRow > .tripLaneColumn {
+  .gapBarRow > :first-child {
     display: none;
   }
 

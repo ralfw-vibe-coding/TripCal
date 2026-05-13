@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { CSSProperties, ChangeEvent, ClipboardEvent, DragEvent } from "react";
+import type { ChangeEvent, ClipboardEvent, DragEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   BookingCorrectionPatch,
@@ -343,12 +343,10 @@ export function App() {
     [bookings, calendarFilterMode, selectedTravelerFilters, selectedTripFilter],
   );
   const groupedBookings = useMemo(() => groupBookingsByDate(filteredBookings), [filteredBookings]);
-  const tripLaneSpans = useMemo(() => buildTripLaneSpans(filteredBookings, trips), [filteredBookings, trips]);
   const bookingEditTravelerLabels = useMemo(
     () => [...new Set([...travelerLabels, ...(bookingEditForm?.travelers ?? [])])].sort(),
     [travelerLabels, bookingEditForm?.travelers],
   );
-  const calendarGridStyle = { "--trip-lane-count": String(Math.min(2, Math.max(1, tripLaneSpans.length))) } as CSSProperties;
 
   return (
     <main className="appShell" onClick={clearPendingDelete}>
@@ -508,15 +506,12 @@ export function App() {
                   <GapBar
                     previousDate={groupedBookings[index - 1].date}
                     nextDate={group.date}
-                    spans={tripLaneSpans}
-                    style={calendarGridStyle}
                   />
                 ) : null}
-                <section className="dayGroup" style={calendarGridStyle}>
+                <section className="dayGroup">
                   <div className="dateRail">
                     <span>{formatDate(group.date)}</span>
                   </div>
-                  <TripLaneColumn date={group.date} spans={tripLaneSpans} />
                   <div className="bookingList">
                     {group.bookings.map((booking) => (
                   <article
@@ -1451,44 +1446,12 @@ function TripChip({ trip }: { trip: NonNullable<CalendarBooking["trip"]> }) {
   );
 }
 
-function TripLaneColumn({
-  date,
-  spans,
-  gapStartDate,
-  gapEndDate,
-}: {
-  date?: string;
-  spans: TripLaneSpan[];
-  gapStartDate?: string;
-  gapEndDate?: string;
-}) {
-  return (
-    <div className="tripLaneColumn" aria-hidden="true">
-      {spans.map((span) => {
-        const isActive =
-          date !== undefined ? isTripLaneActiveOnDate(span, date) : isTripLaneActiveAcrossGap(span, gapStartDate, gapEndDate);
-        return (
-          <div className="tripLaneSlot" key={span.tripCreatedId}>
-            {isActive ? (
-              <div className="tripLaneLine" style={{ backgroundColor: span.color }} title={span.shortCode} />
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function GapBar({
   previousDate,
   nextDate,
-  spans,
-  style,
 }: {
   previousDate: string;
   nextDate: string;
-  spans: TripLaneSpan[];
-  style: CSSProperties;
 }) {
   const emptyDays = daysBetween(previousDate, nextDate) - 1;
 
@@ -1497,9 +1460,8 @@ function GapBar({
   const height = emptyDays > 0 ? 2 + normalized * 8 : 0;
 
   return (
-    <div className="gapBarRow" style={style} aria-hidden="true">
+    <div className="gapBarRow" aria-hidden="true">
       <div />
-      <TripLaneColumn spans={spans} gapStartDate={previousDate} gapEndDate={nextDate} />
       <div className="gapBarTrack">
         {emptyDays > 0 ? <div className="gapBar" style={{ width: `${width}px`, height: `${height}px` }} /> : null}
       </div>
@@ -1770,14 +1732,6 @@ type BookingGroup = {
   bookings: CalendarBooking[];
 };
 
-type TripLaneSpan = {
-  tripCreatedId: string;
-  shortCode: string;
-  color: string;
-  startDate: string;
-  endDate: string;
-};
-
 function filterBookings(
   bookings: CalendarBooking[],
   filter: { mode: CalendarFilterMode; selectedTravelers: string[]; selectedTrip: string | undefined },
@@ -1799,54 +1753,6 @@ function groupBookingsByDate(bookings: CalendarBooking[]): BookingGroup[] {
     groups.set(date, [...(groups.get(date) ?? []), booking]);
   }
   return [...groups.entries()].map(([date, groupBookings]) => ({ date, bookings: groupBookings }));
-}
-
-function buildTripLaneSpans(bookings: CalendarBooking[], trips: Trip[]): TripLaneSpan[] {
-  const spans = new Map<string, TripLaneSpan>();
-
-  for (const booking of bookings) {
-    if (!booking.trip) continue;
-    const startDate = booking.start.value.slice(0, 10);
-    const endDate = booking.end?.value.slice(0, 10) ?? startDate;
-    const existing = spans.get(booking.trip.tripCreatedId);
-    if (!existing) {
-      spans.set(booking.trip.tripCreatedId, {
-        tripCreatedId: booking.trip.tripCreatedId,
-        shortCode: booking.trip.shortCode,
-        color: booking.trip.color,
-        startDate,
-        endDate,
-      });
-      continue;
-    }
-
-    existing.startDate = minDate(existing.startDate, startDate);
-    existing.endDate = maxDate(existing.endDate, endDate);
-  }
-
-  const tripOrder = new Map(trips.map((trip, index) => [trip.tripCreatedId, index]));
-  return [...spans.values()].sort((a, b) => {
-    const orderA = tripOrder.get(a.tripCreatedId) ?? Number.MAX_SAFE_INTEGER;
-    const orderB = tripOrder.get(b.tripCreatedId) ?? Number.MAX_SAFE_INTEGER;
-    return orderA - orderB || a.startDate.localeCompare(b.startDate) || a.shortCode.localeCompare(b.shortCode);
-  });
-}
-
-function isTripLaneActiveOnDate(span: TripLaneSpan, date: string): boolean {
-  return span.startDate <= date && date <= span.endDate;
-}
-
-function isTripLaneActiveAcrossGap(span: TripLaneSpan, startDate?: string, endDate?: string): boolean {
-  if (!startDate || !endDate) return false;
-  return span.startDate <= startDate && endDate <= span.endDate;
-}
-
-function minDate(first: string, second: string): string {
-  return first <= second ? first : second;
-}
-
-function maxDate(first: string, second: string): string {
-  return first >= second ? first : second;
 }
 
 function daysBetween(first: string, second: string): number {
