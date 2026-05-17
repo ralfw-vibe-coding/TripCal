@@ -3,6 +3,9 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[functions]
+  included_files = ["requirements/daily_allowances_bulgaria_en.csv"]
+
 [[redirects]]
   from = "/api/documents/*"
   to = "/.netlify/functions/documents/:splat"

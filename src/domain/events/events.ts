@@ -6,6 +6,7 @@ import type {
   BookingStatus,
   BookingType,
   ExtractedBooking,
+  TripDailyAllowanceAssignment,
   TripCorrectionPatch,
 } from "../model";
 import {
@@ -23,6 +24,7 @@ import {
   emailPartReceivedV1,
   tripCorrectedV1,
   tripCreatedV1,
+  tripDailyAllowancesSetV1,
 } from "./eventTypes";
 
 export type DocumentTextRecordedV1Payload =
@@ -221,6 +223,18 @@ export type TripCorrectedV1 = Event & {
   payload: TripCorrectedV1Payload;
 };
 
+export type TripDailyAllowancesSetV1Payload = {
+  id: string;
+  tripCreatedId: string;
+  assignments: TripDailyAllowanceAssignment[];
+  setAt: string;
+};
+
+export type TripDailyAllowancesSetV1 = Event & {
+  eventType: typeof tripDailyAllowancesSetV1;
+  payload: TripDailyAllowancesSetV1Payload;
+};
+
 export type BookingAssignedToTripV1Payload = {
   id: string;
   bookingExtractedId: string;
@@ -269,6 +283,7 @@ export type TripCalEvent =
   | BookingDeletedV1
   | TripCreatedV1
   | TripCorrectedV1
+  | TripDailyAllowancesSetV1
   | BookingAssignedToTripV1
   | BookingCorrectedV1
   | BookingStatusChangedV1;
@@ -317,6 +332,10 @@ export function isTripCreatedV1(event: Event): event is TripCreatedV1 {
 
 export function isTripCorrectedV1(event: Event): event is TripCorrectedV1 {
   return event.eventType === tripCorrectedV1;
+}
+
+export function isTripDailyAllowancesSetV1(event: Event): event is TripDailyAllowancesSetV1 {
+  return event.eventType === tripDailyAllowancesSetV1;
 }
 
 export function isBookingAssignedToTripV1(event: Event): event is BookingAssignedToTripV1 {

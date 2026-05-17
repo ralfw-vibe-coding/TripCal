@@ -71,6 +71,15 @@ function tripCalApiPlugin() {
         sendJson(response, 200, await runtime.processor.viewTrips({}));
       });
 
+      server.middlewares.use("/api/view-trip-reports", async (request, response) => {
+        if (request.method !== "GET") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+        const runtime = await getProcessorRuntime();
+        sendJson(response, 200, await runtime.processor.viewTripReports({}));
+      });
+
       server.middlewares.use("/api/create-trip", async (request, response) => {
         if (request.method !== "POST") {
           sendJson(response, 405, { message: "Method not allowed" });
@@ -102,6 +111,20 @@ function tripCalApiPlugin() {
           owner: String(body.owner ?? ""),
           startDate: String(body.startDate ?? ""),
           endDate: String(body.endDate ?? ""),
+        });
+        sendJson(response, result.status === "succeeded" ? 200 : 400, result);
+      });
+
+      server.middlewares.use("/api/set-trip-daily-allowances", async (request, response) => {
+        if (request.method !== "POST") {
+          sendJson(response, 405, { message: "Method not allowed" });
+          return;
+        }
+        const body = await readJsonBody(request);
+        const runtime = await getProcessorRuntime();
+        const result = await runtime.processor.setTripDailyAllowances({
+          tripCreatedId: String(body.tripCreatedId ?? ""),
+          assignments: Array.isArray(body.assignments) ? body.assignments : [],
         });
         sendJson(response, result.status === "succeeded" ? 200 : 400, result);
       });

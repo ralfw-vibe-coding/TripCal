@@ -15,6 +15,7 @@ import {
   Plane,
   Plus,
   RefreshCw,
+  Save,
   Ship,
   Send,
   TrainFront,
@@ -34,7 +35,10 @@ import type {
   BookingStatus,
   BookingType,
   CalendarBooking,
+  DailyAllowance,
   Trip,
+  TripDailyAllowanceAssignment,
+  TripReport,
 } from "../../domain/model";
 import type { ActivityLogEntry } from "../../providers/activity-log/ActivityLogProvider";
 import {
@@ -44,11 +48,13 @@ import {
   correctTrip,
   createTrip,
   deleteBooking,
+  setTripDailyAllowances,
   submitDocumentFiles,
   submitDocumentImage,
   submitDocumentText,
   viewActivityLog,
   viewBookingCalendar,
+  viewTripReports,
   viewTrips,
 } from "./api";
 
@@ -102,6 +108,8 @@ export function App() {
 
   const [bookings, setBookings] = useState<CalendarBooking[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [tripReports, setTripReports] = useState<TripReport[]>([]);
+  const [dailyAllowances, setDailyAllowances] = useState<DailyAllowance[]>([]);
   const [travelerLabels, setTravelerLabels] = useState<string[]>([]);
   const [text, setText] = useState("");
   const [pastedImage, setPastedImage] = useState<PastedImage | undefined>();
@@ -141,9 +149,15 @@ export function App() {
   async function loadCalendar() {
     setIsLoadingCalendar(true);
     try {
-      const [calendarResponse, tripsResponse] = await Promise.all([viewBookingCalendar(), viewTrips()]);
+      const [calendarResponse, tripsResponse, reportsResponse] = await Promise.all([
+        viewBookingCalendar(),
+        viewTrips(),
+        viewTripReports(),
+      ]);
       setBookings(calendarResponse.bookings);
       setTrips(tripsResponse.trips);
+      setTripReports(reportsResponse.reports);
+      setDailyAllowances(reportsResponse.dailyAllowances);
       setTravelerLabels(tripsResponse.travelerLabels);
     } finally {
       setIsLoadingCalendar(false);
@@ -266,6 +280,24 @@ export function App() {
     }
   }
 
+  async function handleSetTripDailyAllowances(
+    tripCreatedId: string,
+    assignments: TripDailyAllowanceAssignment[],
+  ): Promise<boolean> {
+    setMessage(undefined);
+    const response = await setTripDailyAllowances({ tripCreatedId, assignments });
+    if (response.status === "failed") {
+      setMessage(
+        response.reason === "trip_not_found"
+          ? "Trip wurde nicht gefunden."
+          : "Tagessätze konnten nicht gespeichert werden.",
+      );
+      return false;
+    }
+    await loadCalendar();
+    return true;
+  }
+
   async function handleAssignTrip(bookingExtractedId: string, tripCreatedId: string) {
     if (!tripCreatedId) return;
     const response = await assignBookingToTrip(bookingExtractedId, tripCreatedId);
@@ -347,13 +379,7 @@ export function App() {
 
   function toggleReportTripExpanded(id: string) {
     setExpandedReportTripIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
+      return current.has(id) ? new Set() : new Set([id]);
     });
   }
 
@@ -670,10 +696,12 @@ export function App() {
       </section>
       ) : (
         <TripReportsView
-          trips={trips}
+          reports={tripReports}
+          dailyAllowances={dailyAllowances}
           isLoading={isLoadingCalendar}
           expandedTripIds={expandedReportTripIds}
           onToggleTrip={toggleReportTripExpanded}
+          onSaveTripDailyAllowances={handleSetTripDailyAllowances}
         />
       )}
 
@@ -1393,16 +1421,28 @@ function ActivityLogPage() {
 }
 
 function TripReportsView({
-  trips,
+  reports,
+  dailyAllowances,
   isLoading,
   expandedTripIds,
   onToggleTrip,
+  onSaveTripDailyAllowances,
 }: {
-  trips: Trip[];
+  reports: TripReport[];
+  dailyAllowances: DailyAllowance[];
   isLoading: boolean;
   expandedTripIds: Set<string>;
   onToggleTrip: (tripCreatedId: string) => void;
+  onSaveTripDailyAllowances: (tripCreatedId: string, assignments: TripDailyAllowanceAssignment[]) => Promise<boolean>;
 }) {
+  const [draftAssignmentsByTripId, setDraftAssignmentsByTripId] = useState<Record<string, TripDailyAllowanceAssignment[]>>({});
+  const [selectedDaysByTripId, setSelectedDaysByTripId] = useState<Record<string, string[]>>({});
+  const [lastSelectedDayByTripId, setLastSelectedDayByTripId] = useState<Record<string, string>>({});
+  const [allowanceSearchByTripId, setAllowanceSearchByTripId] = useState<Record<string, string>>({});
+  const [selectedAllowanceByTripId, setSelectedAllowanceByTripId] = useState<Record<string, string>>({});
+  const [allowanceFactorByTripId, setAllowanceFactorByTripId] = useState<Record<string, 1 | 2>>({});
+  const [savingTripId, setSavingTripId] = useState<string | undefined>();
+
   if (isLoading) {
     return (
       <section className="reportSurface" aria-label="Trip Reports">
@@ -1414,7 +1454,7 @@ function TripReportsView({
     );
   }
 
-  if (trips.length === 0) {
+  if (reports.length === 0) {
     return (
       <section className="reportSurface" aria-label="Trip Reports">
         <div className="emptyState">
@@ -1428,47 +1468,228 @@ function TripReportsView({
   return (
     <section className="reportSurface" aria-label="Trip Reports">
       <div className="reportTripList">
-        {trips.map((trip) => {
+        {reports.map((report) => {
+          const trip = report.trip;
           const isExpanded = expandedTripIds.has(trip.tripCreatedId);
-          const days = daysInRange(trip.startDate, trip.endDate);
+          const selectedDays = selectedDaysByTripId[trip.tripCreatedId] ?? [];
+          const selectedAllowanceKey = selectedAllowanceByTripId[trip.tripCreatedId] ?? "";
+          const selectedAllowance = dailyAllowances.find((allowance) => allowance.countryAbbr === selectedAllowanceKey);
+          const factor = allowanceFactorByTripId[trip.tripCreatedId] ?? 2;
+          const assignments = currentReportAssignments(report, draftAssignmentsByTripId);
+          const isDirty = hasReportDraft(report, draftAssignmentsByTripId);
+          const countryColors = reportCountryColors(assignments);
+          const filteredAllowances = filterDailyAllowances(dailyAllowances, allowanceSearchByTripId[trip.tripCreatedId] ?? "");
+          const visibleTotal = reportVisibleDailyAllowanceTotal(report, assignments);
+
+          function setReportDraft(assignmentsNext: TripDailyAllowanceAssignment[]) {
+            setDraftAssignmentsByTripId((current) => ({
+              ...current,
+              [trip.tripCreatedId]: sortAssignments(assignmentsNext),
+            }));
+          }
+
+          function toggleDay(date: string, shiftKey: boolean) {
+            const allDates = report.days.map((day) => day.date);
+            const lastSelected = lastSelectedDayByTripId[trip.tripCreatedId];
+            setSelectedDaysByTripId((current) => {
+              const next = new Set(current[trip.tripCreatedId] ?? []);
+              if (shiftKey && lastSelected && allDates.includes(lastSelected)) {
+                const from = allDates.indexOf(lastSelected);
+                const to = allDates.indexOf(date);
+                const [start, end] = from < to ? [from, to] : [to, from];
+                for (const rangeDate of allDates.slice(start, end + 1)) {
+                  next.add(rangeDate);
+                }
+              } else if (next.has(date)) {
+                next.delete(date);
+              } else {
+                next.add(date);
+              }
+              return { ...current, [trip.tripCreatedId]: [...next].sort() };
+            });
+            setLastSelectedDayByTripId((current) => ({ ...current, [trip.tripCreatedId]: date }));
+          }
+
+          async function applySelectedAllowance() {
+            if (!selectedAllowance || selectedDays.length === 0) return;
+            const byDate = new Map(assignments.map((assignment) => [assignment.date, assignment]));
+            for (const date of selectedDays) {
+              byDate.set(date, {
+                date,
+                country: selectedAllowance.country,
+                countryAbbr: selectedAllowance.countryAbbr,
+                dailyAllowanceEuro: selectedAllowance.dailyAllowanceEuro,
+                factor,
+              });
+            }
+            const nextAssignments = sortAssignments([...byDate.values()]);
+            setReportDraft(nextAssignments);
+            setSelectedDaysByTripId((current) => omitKey(current, trip.tripCreatedId));
+            setLastSelectedDayByTripId((current) => omitKey(current, trip.tripCreatedId));
+            setSavingTripId(trip.tripCreatedId);
+            try {
+              const saved = await onSaveTripDailyAllowances(trip.tripCreatedId, nextAssignments);
+              if (saved) {
+                setDraftAssignmentsByTripId((current) => omitKey(current, trip.tripCreatedId));
+              }
+            } finally {
+              setSavingTripId(undefined);
+            }
+          }
+
+          async function saveAssignments() {
+            setSavingTripId(trip.tripCreatedId);
+            try {
+              const saved = await onSaveTripDailyAllowances(trip.tripCreatedId, assignments);
+              if (saved) {
+                setDraftAssignmentsByTripId((current) => omitKey(current, trip.tripCreatedId));
+                setSelectedDaysByTripId((current) => omitKey(current, trip.tripCreatedId));
+              }
+            } finally {
+              setSavingTripId(undefined);
+            }
+          }
+
+          function discardDraft() {
+            setDraftAssignmentsByTripId((current) => omitKey(current, trip.tripCreatedId));
+            setSelectedDaysByTripId((current) => omitKey(current, trip.tripCreatedId));
+          }
+
           return (
             <article className="reportTripCard" key={trip.tripCreatedId} style={{ borderLeftColor: trip.color }}>
-              <button
-                className="reportTripHeader"
-                type="button"
-                onClick={() => onToggleTrip(trip.tripCreatedId)}
-                aria-expanded={isExpanded}
-              >
-                <div className="reportTripTitleBlock">
-                  <span className="reportTripTitle">
-                    <strong>{trip.shortCode}</strong>
-                    <span className="reportTripNumber">#{trip.tripNumber}</span>
-                    {trip.title ? <span className="reportTripName">{trip.title}</span> : null}
-                  </span>
-                  <span className="reportTripDates">
-                    {formatShortDate(trip.startDate)} - {formatShortDate(trip.endDate)}
-                  </span>
-                </div>
+              <div className="reportTripHeader">
+                <button
+                  className="reportTripToggle"
+                  type="button"
+                  onClick={() => onToggleTrip(trip.tripCreatedId)}
+                  aria-expanded={isExpanded}
+                >
+                  <div className="reportTripTitleBlock">
+                    <span className="reportTripTitle">
+                      <strong>{trip.shortCode}</strong>
+                      <span className="reportTripNumber">#{trip.tripNumber}</span>
+                      {trip.title ? <span className="reportTripName">{trip.title}</span> : null}
+                    </span>
+                    <span className="reportTripDates">
+                      {formatShortDate(trip.startDate)} - {formatShortDate(trip.endDate)}
+                    </span>
+                  </div>
+                </button>
                 <div className="reportTripMeta">
+                  {isDirty ? (
+                    <div className="reportTripActions" aria-label="Ungespeicherte Tagessatzänderungen">
+                      <button
+                        className="reportIconButton"
+                        type="button"
+                        onClick={() => void saveAssignments()}
+                        disabled={savingTripId === trip.tripCreatedId}
+                        title="Tagessätze speichern"
+                      >
+                        {savingTripId === trip.tripCreatedId ? <Loader2 className="spin" size={16} /> : <Save size={16} />}
+                      </button>
+                      <button className="reportIconButton" type="button" onClick={discardDraft} title="Änderungen verwerfen">
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : null}
                   <span className="travelerBadge tripOwnerBadge" title={trip.owner} style={travelerBadgeStyle(trip.owner)}>
                     {trip.owner}
                   </span>
-                  {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                  <button className="reportExpandButton" type="button" onClick={() => onToggleTrip(trip.tripCreatedId)}>
+                    {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                  </button>
                 </div>
-              </button>
+              </div>
               {isExpanded ? (
                 <div className="reportTripBody">
                   <div className="reportDayGrid" aria-label={`Tage für Trip ${trip.shortCode}`}>
-                    {days.map((day, index) => (
-                      <div className="reportDayTile" key={day}>
+                    {report.days.map((day) => {
+                      const assignment = assignments.find((entry) => entry.date === day.date);
+                      const isSelected = selectedDays.includes(day.date);
+                      return (
+                      <button
+                        className={`reportDayTile${isSelected ? " selected" : ""}${assignment ? " assigned" : ""}`}
+                        key={day.date}
+                        type="button"
+                        onClick={(event) => toggleDay(day.date, event.shiftKey)}
+                        style={assignment ? reportDayTileStyle(assignment.countryAbbr, countryColors) : undefined}
+                      >
                         <span className="reportDayMain">
-                          <span className="reportDayNumber">{String(index + 1).padStart(2, "0")}</span>
-                          <span>{formatReportDay(day)}</span>
+                          <span className="reportDayNumber">{String(day.index).padStart(2, "0")}</span>
+                          <span>{formatReportDay(day.date)}</span>
                         </span>
-                        <span className="reportDayCountry">--</span>
-                      </div>
-                    ))}
+                        <span className="reportDayCountryLine">
+                          <span className="reportDayCountry">{assignment?.countryAbbr ?? "--"}</span>
+                          {assignment ? <span className="reportDayAmount">{assignment.dailyAllowanceEuro * assignment.factor}€</span> : null}
+                        </span>
+                      </button>
+                      );
+                    })}
                   </div>
+                  <div className="reportTotal">Gesamt: {visibleTotal}€</div>
+                  {selectedDays.length > 0 ? (
+                    <div className="allowanceEditor">
+                      <div className="allowanceEditorTop">
+                        <label className="allowanceSearch">
+                          <span>Tagessatz suchen</span>
+                          <input
+                            value={allowanceSearchByTripId[trip.tripCreatedId] ?? ""}
+                            onChange={(event) =>
+                              setAllowanceSearchByTripId((current) => ({
+                                ...current,
+                                [trip.tripCreatedId]: event.target.value,
+                              }))
+                            }
+                            onFocus={(event) => event.target.select()}
+                            placeholder="Land oder Kürzel"
+                          />
+                        </label>
+                        <div className="allowanceFactorGroup" aria-label="Faktor">
+                          <button
+                            className={factor === 1 ? "active" : ""}
+                            type="button"
+                            onClick={() => setAllowanceFactorByTripId((current) => ({ ...current, [trip.tripCreatedId]: 1 }))}
+                          >
+                            1x
+                          </button>
+                          <button
+                            className={factor === 2 ? "active" : ""}
+                            type="button"
+                            onClick={() => setAllowanceFactorByTripId((current) => ({ ...current, [trip.tripCreatedId]: 2 }))}
+                          >
+                            2x
+                          </button>
+                        </div>
+                        <button
+                          className="allowanceApplyButton"
+                          type="button"
+                          onClick={() => void applySelectedAllowance()}
+                          disabled={!selectedAllowance || savingTripId === trip.tripCreatedId}
+                        >
+                          {savingTripId === trip.tripCreatedId ? "Speichert..." : `Auf ${selectedDays.length} Tag(e) anwenden`}
+                        </button>
+                      </div>
+                      <div className="allowanceList" aria-label="Tagessätze">
+                        {filteredAllowances.map((allowance) => (
+                          <button
+                            className={selectedAllowanceKey === allowance.countryAbbr ? "allowanceOption selected" : "allowanceOption"}
+                            type="button"
+                            key={allowance.countryAbbr}
+                            onClick={() =>
+                              setSelectedAllowanceByTripId((current) => ({
+                                ...current,
+                                [trip.tripCreatedId]: allowance.countryAbbr,
+                              }))
+                            }
+                          >
+                            <span>{allowance.country}</span>
+                            <span className="allowanceAbbr">{allowance.countryAbbr}</span>
+                            <strong>{allowance.dailyAllowanceEuro}€</strong>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </article>
@@ -1477,6 +1698,73 @@ function TripReportsView({
       </div>
     </section>
   );
+}
+
+const reportAllowancePalette = [
+  "#1f8a4c",
+  "#2563ad",
+  "#a35a00",
+  "#a12b64",
+  "#5f5aa2",
+  "#2f7c84",
+  "#7a5c14",
+  "#8a3d2d",
+  "#4f6f35",
+  "#6a4c93",
+];
+
+function currentReportAssignments(
+  report: TripReport,
+  drafts: Record<string, TripDailyAllowanceAssignment[]>,
+): TripDailyAllowanceAssignment[] {
+  return drafts[report.trip.tripCreatedId] ?? report.assignments;
+}
+
+function hasReportDraft(report: TripReport, drafts: Record<string, TripDailyAllowanceAssignment[]>): boolean {
+  const draft = drafts[report.trip.tripCreatedId];
+  return Boolean(draft) && JSON.stringify(sortAssignments(draft ?? [])) !== JSON.stringify(sortAssignments(report.assignments));
+}
+
+function sortAssignments(assignments: TripDailyAllowanceAssignment[]): TripDailyAllowanceAssignment[] {
+  return [...assignments].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  const next = { ...record };
+  delete next[key];
+  return next;
+}
+
+function reportCountryColors(assignments: TripDailyAllowanceAssignment[]): Map<string, string> {
+  const countries = [...new Set(assignments.map((assignment) => assignment.countryAbbr))].sort();
+  return new Map(countries.map((country, index) => [country, reportAllowancePalette[index % reportAllowancePalette.length]]));
+}
+
+function reportDayTileStyle(
+  countryAbbr: string,
+  countryColors: Map<string, string>,
+): { borderColor: string; backgroundColor: string } | undefined {
+  const color = countryColors.get(countryAbbr);
+  if (!color) return undefined;
+  return {
+    borderColor: color,
+    backgroundColor: `${color}26`,
+  };
+}
+
+function filterDailyAllowances(dailyAllowances: DailyAllowance[], search: string): DailyAllowance[] {
+  const normalizedSearch = search.trim().toLowerCase();
+  if (!normalizedSearch) return dailyAllowances;
+  return dailyAllowances.filter((allowance) =>
+    `${allowance.country} ${allowance.countryAbbr}`.toLowerCase().includes(normalizedSearch),
+  );
+}
+
+function reportVisibleDailyAllowanceTotal(report: TripReport, assignments: TripDailyAllowanceAssignment[]): number {
+  const visibleDates = new Set(report.days.map((day) => day.date));
+  return assignments
+    .filter((assignment) => visibleDates.has(assignment.date))
+    .reduce((total, assignment) => total + assignment.dailyAllowanceEuro * assignment.factor, 0);
 }
 
 function TravelerBadges({ travelers }: { travelers: string[] }) {

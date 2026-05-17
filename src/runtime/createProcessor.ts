@@ -12,10 +12,12 @@ import { CorrectTrip } from "../behavior/slices/correct-trip/CorrectTrip";
 import { CreateTrip } from "../behavior/slices/create-trip/CreateTrip";
 import { DeleteBooking } from "../behavior/slices/delete-booking/DeleteBooking";
 import { IngestEmail } from "../behavior/slices/ingest-email/IngestEmail";
+import { SetTripDailyAllowances } from "../behavior/slices/set-trip-daily-allowances/SetTripDailyAllowances";
 import { SubmitDocumentImage } from "../behavior/slices/submit-document-image/SubmitDocumentImage";
 import { SubmitDocumentFiles } from "../behavior/slices/submit-document-files/SubmitDocumentFiles";
 import { SubmitDocumentText } from "../behavior/slices/submit-document-text/SubmitDocumentText";
 import { ViewBookingCalendar } from "../behavior/slices/view-booking-calendar/ViewBookingCalendar";
+import { ViewTripReports } from "../behavior/slices/view-trip-reports/ViewTripReports";
 import { ViewTrips } from "../behavior/slices/view-trips/ViewTrips";
 import { AssignBookingToTripCommand } from "../domain/rpus/assign-booking-to-trip-command/AssignBookingToTripCommand";
 import { AutoAssignBookingsToTripsCommand } from "../domain/rpus/auto-assign-bookings-to-trips-command/AutoAssignBookingsToTripsCommand";
@@ -27,12 +29,14 @@ import { DeleteBookingCommand } from "../domain/rpus/delete-booking-command/Dele
 import { GetBookingCalendarQuery } from "../domain/rpus/get-booking-calendar-query/GetBookingCalendarQuery";
 import { GetEmailBookingCandidatesQuery } from "../domain/rpus/get-email-booking-candidates-query/GetEmailBookingCandidatesQuery";
 import { GetEmailIngestProgressQuery } from "../domain/rpus/get-email-ingest-progress-query/GetEmailIngestProgressQuery";
+import { GetTripDailyAllowancesQuery } from "../domain/rpus/get-trip-daily-allowances-query/GetTripDailyAllowancesQuery";
 import { GetTripsQuery } from "../domain/rpus/get-trips-query/GetTripsQuery";
 import { MarkEmailIngestGatheredCommand } from "../domain/rpus/mark-email-ingest-gathered-command/MarkEmailIngestGatheredCommand";
 import { RecordDocumentFileUploadedCommand } from "../domain/rpus/record-document-file-uploaded-command/RecordDocumentFileUploadedCommand";
 import { RecordEmailBookingCandidatesCommand } from "../domain/rpus/record-email-booking-candidates-command/RecordEmailBookingCandidatesCommand";
 import { RecordEmailPartReceivedCommand } from "../domain/rpus/record-email-part-received-command/RecordEmailPartReceivedCommand";
 import { RecordExtractedBookingsCommand } from "../domain/rpus/record-extracted-bookings-command/RecordExtractedBookingsCommand";
+import { SetTripDailyAllowancesCommand } from "../domain/rpus/set-trip-daily-allowances-command/SetTripDailyAllowancesCommand";
 import { SubmitDocumentTextCommand } from "../domain/rpus/submit-document-text-command/SubmitDocumentTextCommand";
 import type { ActivityLogProvider } from "../providers/activity-log/ActivityLogProvider";
 import { JsonFileActivityLogProvider } from "../providers/activity-log/JsonFileActivityLogProvider";
@@ -40,6 +44,7 @@ import { PostgresActivityLogProvider } from "../providers/activity-log/PostgresA
 import { OpenAIBookingExtractionProvider } from "../providers/booking-extraction/OpenAIBookingExtractionProvider";
 import { RuleBasedBookingExtractionProvider } from "../providers/booking-extraction/RuleBasedBookingExtractionProvider";
 import { SystemClock } from "../providers/clock/SystemClock";
+import { CsvDailyAllowanceProvider } from "../providers/daily-allowances/CsvDailyAllowanceProvider";
 import { LocalFileStorageProvider } from "../providers/file-storage/LocalFileStorageProvider";
 import type { FileStorageProvider } from "../providers/file-storage/FileStorageProvider";
 import { R2FileStorageProvider } from "../providers/file-storage/R2FileStorageProvider";
@@ -73,6 +78,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   const correctBookingCommand = new CorrectBookingCommand(store, idGenerator, clock);
   const correctTripCommand = new CorrectTripCommand(store, idGenerator, clock);
   const changeBookingStatusCommand = new ChangeBookingStatusCommand(store, idGenerator, clock);
+  const setTripDailyAllowancesCommand = new SetTripDailyAllowancesCommand(store, idGenerator, clock);
   const recordEmailPartReceivedCommand = new RecordEmailPartReceivedCommand(store, idGenerator);
   const recordEmailBookingCandidatesCommand = new RecordEmailBookingCandidatesCommand(store, idGenerator);
   const markEmailIngestGatheredCommand = new MarkEmailIngestGatheredCommand(store, idGenerator);
@@ -81,7 +87,11 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   const getBookingCalendarQuery = new GetBookingCalendarQuery(store, travelerResolver);
   const getEmailIngestProgressQuery = new GetEmailIngestProgressQuery(store);
   const getEmailBookingCandidatesQuery = new GetEmailBookingCandidatesQuery(store);
+  const getTripDailyAllowancesQuery = new GetTripDailyAllowancesQuery(store);
   const getTripsQuery = new GetTripsQuery(store);
+  const dailyAllowanceProvider = new CsvDailyAllowanceProvider(
+    readRuntimeEnv("DAILY_ALLOWANCES_CSV") ?? "requirements/daily_allowances_bulgaria_en.csv",
+  );
 
   const recordDocumentTextAndExtractBookings = new RecordDocumentTextAndExtractBookings(
     clock,
@@ -99,6 +109,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   const correctBooking = new CorrectBooking(correctBookingCommand);
   const correctTrip = new CorrectTrip(correctTripCommand);
   const changeBookingStatus = new ChangeBookingStatus(changeBookingStatusCommand);
+  const setTripDailyAllowances = new SetTripDailyAllowances(setTripDailyAllowancesCommand);
   const ingestEmail = new IngestEmail(
     clock,
     fileStorageProvider,
@@ -125,6 +136,7 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
   );
   const viewBookingCalendar = new ViewBookingCalendar(getBookingCalendarQuery);
   const viewTrips = new ViewTrips(getTripsQuery, travelerResolver);
+  const viewTripReports = new ViewTripReports(getTripsQuery, getTripDailyAllowancesQuery, dailyAllowanceProvider);
 
   return {
     eventStore: store,
@@ -141,7 +153,9 @@ export async function createProcessorRuntime(eventStore?: EventStore): Promise<P
       correctBooking,
       changeBookingStatus,
       deleteBooking,
+      setTripDailyAllowances,
       viewTrips,
+      viewTripReports,
       viewBookingCalendar,
     ),
   };

@@ -92,6 +92,29 @@ export type TripCorrectionPatch = {
   endDate?: string;
 };
 
+export type DailyAllowance = {
+  country: string;
+  countryAbbr: string;
+  dailyAllowanceEuro: number;
+};
+
+export type TripDailyAllowanceAssignment = DailyAllowance & {
+  date: string;
+  factor: 1 | 2;
+};
+
+export type TripReportDay = {
+  index: number;
+  date: string;
+  assignment?: TripDailyAllowanceAssignment;
+};
+
+export type TripReport = {
+  trip: Trip;
+  days: TripReportDay[];
+  assignments: TripDailyAllowanceAssignment[];
+};
+
 export type CalendarTripReference = {
   tripCreatedId: string;
   shortCode: string;

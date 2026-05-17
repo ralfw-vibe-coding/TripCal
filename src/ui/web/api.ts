@@ -11,8 +11,10 @@ import type { ChangeBookingStatusResponse } from "../../behavior/slices/change-b
 import type { CorrectBookingResponse } from "../../behavior/slices/correct-booking/CorrectBooking";
 import type { CreateTripResponse } from "../../behavior/slices/create-trip/CreateTrip";
 import type { CorrectTripResponse } from "../../behavior/slices/correct-trip/CorrectTrip";
+import type { SetTripDailyAllowancesResponse } from "../../behavior/slices/set-trip-daily-allowances/SetTripDailyAllowances";
+import type { ViewTripReportsResponse } from "../../behavior/slices/view-trip-reports/ViewTripReports";
 import type { ViewTripsResponse } from "../../behavior/slices/view-trips/ViewTrips";
-import type { BookingCorrectionPatch, BookingStatus } from "../../domain/model";
+import type { BookingCorrectionPatch, BookingStatus, TripDailyAllowanceAssignment } from "../../domain/model";
 import type { ActivityLogEntry } from "../../providers/activity-log/ActivityLogProvider";
 
 export async function viewBookingCalendar(): Promise<ViewBookingCalendarResponse> {
@@ -170,6 +172,14 @@ export async function viewTrips(): Promise<ViewTripsResponse> {
   return (await response.json()) as ViewTripsResponse;
 }
 
+export async function viewTripReports(): Promise<ViewTripReportsResponse> {
+  const response = await fetch("/api/view-trip-reports");
+  if (!response.ok) {
+    throw new Error("Trip Reports konnten nicht geladen werden.");
+  }
+  return (await response.json()) as ViewTripReportsResponse;
+}
+
 export async function createTrip(request: {
   shortCode: string;
   title?: string;
@@ -205,6 +215,22 @@ export async function correctTrip(request: {
   const body = (await response.json()) as CorrectTripResponse;
   if (!response.ok && body.status !== "failed") {
     throw new Error("Trip konnte nicht geändert werden.");
+  }
+  return body;
+}
+
+export async function setTripDailyAllowances(request: {
+  tripCreatedId: string;
+  assignments: TripDailyAllowanceAssignment[];
+}): Promise<SetTripDailyAllowancesResponse> {
+  const response = await fetch("/api/set-trip-daily-allowances", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  const body = (await response.json()) as SetTripDailyAllowancesResponse;
+  if (!response.ok && body.status !== "failed") {
+    throw new Error("Tagessätze konnten nicht gespeichert werden.");
   }
   return body;
 }
